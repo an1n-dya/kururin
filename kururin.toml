@@ -1,0 +1,1402 @@
+# Kuru Kuru Kururin (Europe) -- project configuration.
+#
+# Read by scripts/discover_functions.py (function discovery) and
+# scripts/generate_asm.py (asm/ + src/ generation). Addresses are ROM addresses.
+
+[rom]
+sha1 = "6025ef597db2684ae064ffe22b4fd1d37941f887"
+size = 0x400000
+# 0x08000000-0x080000BF is the cartridge header; ARM start-up code follows.
+thumb_start = 0x080002D8
+# AgbMain: the Thumb entry crt0 calls through `ldr r1, =AgbMain+1; bx r1`.
+agbmain = 0x080002D8
+# First byte after the code region. Everything from here on is incbin'd data.
+code_end = 0x0801CB64
+
+# Hand-written ARM routines (crt0 + interrupt code). Luvdis only disassembles
+# Thumb, so these are emitted by scripts/generate_asm.py as ARM .inst words.
+[[arm_functions]]
+start = 0x080000C0
+name = "start_vector"
+
+[[arm_functions]]
+start = 0x080000FC
+name = "IntrMain"
+
+[[arm_functions]]
+start = 0x0800019C
+
+[[arm_functions]]
+start = 0x080001DC
+
+# Hand-written assembly. Discovery exempts these from the tiling check (their
+# routines may share code, fall into each other and switch to ARM mode), and
+# scripts/difficulty.py counts their functions as asm, not C targets.
+# In an asm module (m4a_1) the region is emitted as one .s file. Inside a C module
+# a region is a function whose original source was inline asm: it stays an
+# INCLUDE_ASM for good (CLAUDE.md rule 5 forbids inline asm).
+[[asm_regions]]
+name = "m4a_1"   # MusicPlayer2000 m4a_1.s: umul3232H32, SoundMain, SoundMainRAM, ... TrackStop, ply_*
+start = 0x0801A528
+end = 0x0801B11C
+
+[[asm_regions]]
+name = "MultiBootWaitCycles"   # SDK multiboot.c: NAKED asm; `mov r2, pc` tells ROM from RAM
+start = 0x0801A1FC
+end = 0x0801A214
+
+[[asm_regions]]
+name = "MusicPlayerJumpTableCopy"   # SDK m4a.c: asm("swi 0x2A"); agbcc has no svc builtin
+start = 0x0801B56C
+end = 0x0801B570
+
+# Link order. `kind` is
+#   header  the cartridge header (incbin)
+#   asm     one generated .s file (hand-written code: ARM, m4a_1.s, BIOS stubs)
+#   c       src/<name>.c, one INCLUDE_ASM per function until decompiled
+#   lib     members of agbcc's own libgcc.a / libc.a, linked as they are (their
+#           bytes are identical to the ROM's)
+#   data    incbin'd data (everything after the code)
+# `cc` (agbcc or old_agbcc) and `cflags` are per translation unit, as the original
+# build had them -- never per function -- and every C module must give both (a module
+# split off another takes the parent's). Each choice records its evidence:
+# tests/compiler_evidence/<module>/ holds C that `make compare` (scripts/
+# check_compilers.py) compiles with the setting, which must match, and with each other
+# candidate (agbcc, agbcc -fprologue-bugfix, old_agbcc at -O and -O2), at least one of
+# which must not; a module it cannot decide yet carries `unverified = "<reason>"`.
+# Two differences tell the compilers apart:
+#   * a leaf function that contains a branch: plain agbcc saves lr in it (push {lr} ...
+#     pop {rN}; bx rN); old_agbcc and agbcc -fprologue-bugfix return with a bare bx lr;
+#   * old_agbcc's s_register_operand (tools/agbcc-src/gcc/thumb.c, OLD_COMPILER) accepts
+#     (subreg (mem)), so a single-use ldrb/ldrh is folded into the and/orr/add that uses
+#     it and reloaded right next to it; agbcc keeps the load where the source has it.
+[[modules]]
+name = "rom_header"
+kind = "header"
+start = 0x08000000
+
+[[modules]]
+name = "crt0"        # start_vector, IntrMain + two ARM interrupt routines
+kind = "asm"
+start = 0x080000C0
+
+# The game's own code is one C module per subsystem (docs/modules.md): contiguous ranges, in
+# ROM order, split for readability; the original translation units are not known. All of them
+# have the setting the provisional unit `game` had and share its evidence (`evidence = "game"`,
+# tests/compiler_evidence/game, checked as one group):
+# verified: Util_StepTowards (util), a leaf with branches that saves no registers and ends in a
+# bare bx lr (as do all 7 such leaves in the game), rules out plain agbcc; Sprite_DebugTileGrid
+# (sprite) keeps its ldrh before the and, which rules out old_agbcc (90.91%). Every
+# calibration function in the game matches with this setting.
+[[modules]]
+name = "main"
+# the entry, the frame loop, interrupts, keys, the frame callbacks, the transfer queue and the heap
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080002D8
+
+[[modules]]
+name = "bg"
+# video modes, background maps and layers, the window effect, screen backgrounds
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08000AEC
+
+[[modules]]
+name = "sprite"
+# the sprite lists (OAM buffer) and the affine parameter sets
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08002438
+
+[[modules]]
+name = "text"
+# times, numbers and text drawn as sprites, text conversion
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08002848
+
+[[modules]]
+name = "link"
+# the link cable: multi-player setup and the per-frame exchange
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08003C18
+
+[[modules]]
+name = "decompress"
+# the run-length and LZ decompressors
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08004030
+
+[[modules]]
+name = "task"
+# the task heap: create, free, run and find tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080040E0
+
+[[modules]]
+name = "util"
+# the random byte table, screen positions, steps towards a value, link player bits, directions, animations
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080041F4
+
+[[modules]]
+name = "menu"
+# the menu driver and its key handlers for items and values
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800459C
+
+[[modules]]
+name = "level"
+# a new game, the level number, loading a level and starting its tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08004C24
+
+[[modules]]
+name = "save"
+# the save data: boot load, save, file and record reset
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08005178
+
+[[modules]]
+name = "level_map"
+# reading a level map: start positions and the objects it places
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080057B8
+
+[[modules]]
+name = "intro"
+# the intro (main state 1) and its tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08005F24
+
+[[modules]]
+name = "ending"
+# the ending (main state 4) and its tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080076FC
+
+[[modules]]
+name = "play"
+# main state 3: the menus-to-level loop, a level's loop and its end
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08008200
+
+[[modules]]
+name = "pause"
+# the pause menu and its items
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08009438
+
+[[modules]]
+name = "results"
+# the result screen, rank-ups, the camera origin, a level's records
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800AA0C
+
+[[modules]]
+name = "files"
+# the file select, name entry and delete-data screens
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800B8A0
+
+[[modules]]
+name = "mode_menu"
+# the mode menu (and the MultiBoot send), then the Adventure map screen it leads to, its level menu and map tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800C75C
+
+[[modules]]
+name = "script"
+# the screens that step through a script of pictures
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800E560
+
+[[modules]]
+name = "collection"
+# the bonus collection screen and its picture tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800EF44
+
+[[modules]]
+name = "level_intro"
+# the screen before a level and its animation
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800F624
+
+[[modules]]
+name = "challenge"
+# the Challenge course menu
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0800FAAC
+
+[[modules]]
+name = "vs"
+# the linked (VS) game: waiting for the consoles, its menus and screens
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0801016C
+
+[[modules]]
+name = "makeup"
+# lives by game mode and the Make Up screen
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080131F8
+
+[[modules]]
+name = "collision"
+# map collision and the Helirin's points against shapes
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08013D0C
+
+[[modules]]
+name = "helirin"
+# the Helirin: setup, its frame (physics), collision response, drawing
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080142DC
+
+[[modules]]
+name = "objects"
+# the world objects of a level (spinners, shooters, swingers, turrets)
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08015890
+
+[[modules]]
+name = "hud"
+# the lives and status sprites and the times drawn during a level
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08016BF4
+
+[[modules]]
+name = "effects"
+# effect tasks: window and fade effects, sparks, palette cycles, banners
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08017270
+
+[[modules]]
+name = "sound"
+# song starts with the sound mode and song tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080181FC
+
+[[modules]]
+name = "bonus"
+# the bonus items of a level and their tasks
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08018330
+
+[[modules]]
+name = "practice"
+# Practice (mode 5) and its area menu
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08018D34
+
+[[modules]]
+name = "debug"
+# code no state selects: a stage select and a MultiBoot send test
+kind = "c"
+evidence = "game"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x080194D4
+
+[[modules]]
+name = "multiboot"   # Nintendo SDK multiboot.c, MultiBootInit..MultiBootWaitSendDone
+kind = "c"
+# verified (tests/compiler_evidence/multiboot): the SDK's MultiBootCheckComplete (a leaf
+# with a branch) rules out plain agbcc; MultiBootHandShake keeps its ldrb of masterp[0xAC]
+# before the orr, which rules out old_agbcc (96.06%).
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x08019BA0
+
+[[modules]]
+name = "sio"         # provisional: SIO32 transfer + serial interrupt code; not multiboot.c
+kind = "c"
+# the game's setting (see unverified)
+unverified = "its C (src/sio.c) rules out old_agbcc -O2 (97.3-98.8%) and -O (63-92%), but agbcc gives the same code with or without -fprologue-bugfix; set like its neighbour multiboot"
+cc = "agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm -fprologue-bugfix"
+start = 0x0801A250
+
+[[modules]]
+name = "m4a_1"       # MusicPlayer2000 hand-written asm
+kind = "asm"
+start = 0x0801A528
+
+[[modules]]
+name = "m4a"         # MusicPlayer2000 C, from MidiKeyToFreq (the only caller of umul3232H32)
+kind = "c"
+# verified (tests/compiler_evidence/m4a): MPlayContinue (a leaf with a branch) rules out
+# plain agbcc; the SDK's CgbModVol has old_agbcc's folded ldrb/ldrb/adds, which rules out
+# agbcc -fprologue-bugfix (88.02%). pret builds the SDK's m4a with old_agbcc too.
+cc = "old_agbcc"
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O2 -fhex-asm"
+start = 0x0801B11C
+
+[[modules]]
+name = "libagbsyscall"   # BIOS call stubs (svc)
+kind = "asm"
+start = 0x0801C5C0
+
+[[modules]]
+name = "agb_sram"    # Nintendo SRAM library (SRAM_V111)
+kind = "c"
+cc = "old_agbcc"
+unverified = "cc: agbcc gives the same code for every function of this library; -O is verified"
+# verified (tests/compiler_evidence/agb_sram): ReadSram_Core/WriteSram match as the SDK
+# wrote them only at -O (like pret's agb_flash); at -O2 the loops and registers differ
+cflags = "-mthumb-interwork -Wimplicit -Wparentheses -O -fhex-asm"
+start = 0x0801C5D0
+
+[[modules]]
+name = "libgcc"      # byte-identical to agbcc's libgcc.a members
+kind = "lib"
+archive = "libgcc.a"
+members = ["_call_via_rX.o", "_divsi3.o", "_dvmd_tls.o", "_modsi3.o", "_udivsi3.o", "_umodsi3.o"]
+start = 0x0801C72C
+
+[[modules]]
+name = "libc"        # byte-identical to agbcc's libc.a members
+kind = "lib"
+archive = "libc.a"
+members = ["memcpy.o", "memset.o", "strcmp.o", "strcpy.o"]
+start = 0x0801CA08
+
+[[modules]]
+name = "data"        # all read-only data after the code; split as it is understood
+kind = "data"
+start = 0x0801CB64
+
+[overrides]
+# Entry points discovery cannot find on its own (each needs a comment saying why).
+functions = []
+# Candidates that discovery accepts but are not functions.
+not_functions = []
+# Functions that never return (in addition to those detected automatically).
+noreturn = []
+# BL targets that are long-branch labels inside their caller (in addition to
+# those detected automatically).
+farjumps = []
+# Data inside the code region, as [start, end] pairs. Discovery fails unless the
+# data it finds is exactly this list, so an entry needs a comment saying what it is.
+data_in_code = []
+
+# Function names (address -> name). Every name needs evidence; see CLAUDE.md.
+[renames]
+0x080002D8 = "AgbMain"
+0x0800044C = "IntrDummy"           # fills the IRQ table AgbMain copies to IWRAM 0x030008B0
+0x080004EC = "Main_ClearFrameCallback"  # gMain.frameCallback = NULL (nothing calls it); ClearFrameCallback until the deep review gave it the module prefix
+# MusicPlayer2000 (Nintendo SDK sound engine): identified by code shape and order,
+# which match the SDK's m4a_1.s / m4a.c as reconstructed by pret's projects.
+0x0801A528 = "umul3232H32"         # adr/bx to ARM umull
+0x0801A538 = "SoundMain"           # checks the 'Smsh' ID, calls SoundMainRAM in IWRAM
+0x0801A5BC = "SoundMainRAM"        # mixer; copied to IWRAM, switches to ARM
+0x0801ABC4 = "MPlayMain"           # MPlayOpen installs it as SoundInfo.MPlayMainHead
+0x0801A9C8 = "MPlayJumpTableCopy"  # SoundInit: copies the BIOS's jump list into gMPlayJumpTable
+0x0801AE30 = "TrackStop"           # calls CgbOscOff through `bl call_r3`
+0x0801AE74 = "ply_note"            # SoundInit installs it as SoundInfo.plynote
+0x0801B08C = "ply_endtie"          # MPlayExtender: gMPlayJumpTable[29]
+0x0801B0F4 = "ply_lfos"            # MPlayExtender: gMPlayJumpTable[17]
+0x0801B108 = "ply_mod"             # MPlayExtender: gMPlayJumpTable[19]
+0x0801B11C = "MidiKeyToFreq"       # the only caller of umul3232H32
+0x0801B180 = "UnusedDummyFunc"
+0x0801B184 = "MPlayContinue"       # clears bit 31 of status if ident == 'Smsh'
+0x0801B1A0 = "MPlayFadeOut"
+0x0801B3B8 = "m4aMPlayContinue"    # SDK wrapper: MPlayContinue(mplayInfo)
+0x0801B3F0 = "m4aMPlayFadeOut"     # SDK wrapper: MPlayFadeOut(mplayInfo, (u16)speed)
+0x0801B448 = "MPlayExtender"       # sets SOUNDCNT_X, fills gMPlayJumpTable (0x03005830)
+0x0801B56C = "MusicPlayerJumpTableCopy"  # svc 0x2A (SoundGetJumpList)
+0x0801B570 = "ClearChain"          # calls gMPlayJumpTable[34]
+0x0801B584 = "Clear64byte"         # calls gMPlayJumpTable[35]
+0x0801BC24 = "CgbModVol"           # pret's SDK C (with CgbPan) matches: tests/compiler_evidence/m4a
+# The rest of m4a.c: each function byte-matches pret's (pokeemerald m4a.c) function of
+# that name, in the same order, adapted to this older revision (src/m4a.c)
+0x0801B1C0 = "m4aSoundInit"
+0x0801B24C = "m4aSoundMain"
+0x0801B258 = "m4aSongNumStart"
+0x0801B284 = "m4aSongNumStartOrChange"
+0x0801B2D0 = "m4aSongNumStartOrContinue"
+0x0801B324 = "m4aSongNumStop"
+0x0801B358 = "m4aSongNumContinue"
+0x0801B38C = "m4aMPlayAllStop"
+0x0801B3C4 = "m4aMPlayAllContinue"
+0x0801B400 = "m4aMPlayImmInit"
+0x0801B598 = "SoundInit"
+0x0801B660 = "SampleFreqSet"
+0x0801B704 = "m4aSoundMode"
+0x0801B79C = "SoundClear"
+0x0801B7F0 = "m4aSoundVSyncOff"
+0x0801B83C = "m4aSoundVSyncOn"
+0x0801B878 = "MPlayOpen"
+0x0801B8F0 = "MPlayStart"
+0x0801B9A4 = "m4aMPlayStop"
+0x0801B9E4 = "FadeOutBody"
+0x0801BA64 = "TrkVolPitSet"
+0x0801BB2C = "MidiKeyToCgbFreq"
+0x0801BBD4 = "CgbOscOff"
+0x0801BC8C = "CgbSound"
+0x0801C0D0 = "m4aMPlayTempoControl"
+0x0801C0F8 = "m4aMPlayVolumeControl"
+0x0801C160 = "m4aMPlayPitchControl"
+0x0801C1D4 = "m4aMPlayPanpotControl"
+0x0801C23C = "ClearModM"
+0x0801C25C = "m4aMPlayModDepthSet"
+0x0801C2D0 = "m4aMPlayLFOSpeedSet"
+0x0801C344 = "ply_memacc"
+0x0801C49C = "ply_xcmd"
+0x0801C4BC = "ply_xxx"
+0x0801C4D0 = "ply_xwave"
+0x0801C518 = "ply_xtype"
+0x0801C52C = "ply_xatta"
+0x0801C540 = "ply_xdeca"
+0x0801C554 = "ply_xsust"
+0x0801C568 = "ply_xrele"
+0x0801C57C = "ply_xiecv"
+0x0801C588 = "ply_xiecl"
+0x0801C594 = "ply_xleng"
+0x0801C5A8 = "ply_xswee"
+0x0801C5BC = "DummyFunc"
+# Nintendo SDK multiboot.c: the nine functions match it one for one, in source order
+# (MultiBootMain is the only caller of the MultiBoot BIOS stub).
+0x08019BA0 = "MultiBootInit"
+0x08019BDC = "MultiBootMain"
+0x08019FCC = "MultiBootSend"
+0x0801A018 = "MultiBootStartProbe"
+0x0801A03C = "MultiBootStartMaster"
+0x0801A100 = "MultiBootCheckComplete"  # return probe_count == 0xE9
+0x0801A110 = "MultiBootHandShake"
+0x0801A1FC = "MultiBootWaitCycles"
+0x0801A214 = "MultiBootWaitSendDone"
+# BIOS call stubs (by SWI number)
+0x0801C5C0 = "CpuFastSet"          # svc 0x0C
+0x0801C5C4 = "CpuSet"              # svc 0x0B
+0x0801C5C8 = "MultiBoot"           # svc 0x25 (mode 1)
+# Nintendo SRAM library (SRAM_V111; its table lists ReadSram_Core, ReadSram,
+# VerifySram_Core, VerifySram)
+0x0801C5D0 = "ReadSram_Core"
+0x0801C5F4 = "ReadSram"
+0x0801C658 = "WriteSram"
+0x0801C698 = "VerifySram_Core"
+0x0801C6C8 = "VerifySram"
+# libgcc / libc: byte-identical to the members of agbcc's libgcc.a / libc.a
+0x0801C72C = "_call_via_r0"
+0x0801C730 = "_call_via_r1"
+0x0801C734 = "_call_via_r2"
+0x0801C738 = "_call_via_r3"
+0x0801C73C = "_call_via_r4"
+0x0801C740 = "_call_via_r5"
+0x0801C744 = "_call_via_r6"
+0x0801C748 = "_call_via_r7"
+0x0801C74C = "_call_via_r8"
+0x0801C750 = "_call_via_r9"
+0x0801C754 = "_call_via_sl"
+0x0801C758 = "_call_via_fp"
+0x0801C75C = "_call_via_ip"
+0x0801C760 = "_call_via_sp"
+0x0801C764 = "_call_via_lr"
+0x0801C768 = "__divsi3"
+0x0801C7FC = "__div0"
+0x0801C800 = "__modsi3"
+0x0801C8D0 = "__udivsi3"
+0x0801C948 = "__umodsi3"
+0x0801CA08 = "memcpy"
+0x0801CA68 = "memset"
+0x0801CABC = "strcmp"
+0x0801CB18 = "strcpy"
+# Game, module helirin (docs/names.md)
+0x080142DC = "Helirin_SetColor"        # sets color, the save file's colour (docs/save_format.md 0x019), and its colour animation gHelirinColorAnims[color]
+0x08014324 = "Helirin_SetSize"         # loads entry size of gHelirinSizes (17..3 points, 64..8 pixels long: the stick's size, which Select changes in a zone) and its OBJ tiles
+0x08014594 = "Helirin_Init"            # sets Helirin n up for a level: the start point, type and colour from the save file, lives (Lives_Init), size
+0x0801475C = "Helirin_ResetToStart"    # puts the Helirin back on the start point and restarts the demo keys (its only caller: the end of a looping demo)
+0x0801482C = "Helirin_Update"          # the Helirin's frame: KururinTAS kkk.txt 'Global description of physics' steps 1-5 (keys, input speed, bump decay, zones)
+0x080150E4 = "Helirin_UpdateCollision" # KururinTAS kkk.txt 0x08015160-0x0801531E: the collision mask, damage, invulnerability, the 3 s timer penalty, the wall bumps
+0x08015468 = "Helirin_Draw"            # copies its palette, picks an affine set rotated by its angle and draws its sprites (Sprite_Alloc)
+0x08015638 = "Helirin_Bump"            # sets xb/yb (.wch 'XB'/'YB', kkk.txt 'X bump') from a direction and a speed and moves by them
+0x08015684 = "Helirin_UpdatePiece"     # the task of one of the 16 pieces Helirin_Update starts when the Helirin crashes (flags bit 6)
+0x080157B4 = "Helirin_UpdatePreview"   # spins in place with the keys and draws, no physics: the Make Up screen's Helirin (src/makeup.c)
+# Game, module collision (docs/names.md)
+0x08013D0C = "Collision_TestWallPixel"     # KururinTAS kkk.txt 'Collision Test' (0x08013D0C): the 4-bit pixel of a wall tile (1-0x9F) at a map position, 0 for any other tile
+0x08013DA8 = "Collision_GetTilePixel"      # the same pixel for any tile (Helirin_Update tests the diagonal zone tiles 0xF2/0xF3 with it)
+0x08013E38 = "Collision_UpdatePoints"      # places points[] along the stick by angle (kkk.txt: 'Helirin separated in 17 parts') and the box of its ends
+0x08013F14 = "Collision_TestShapes"        # the mask of the Helirin's points inside a list of shapes (the springs, the moving objects)
+0x080140D4 = "Collision_FindPointInShapes" # the first of the Helirin's points inside a list of shapes, or -1
+0x08014258 = "Debug_DrawHexWords"          # draws 8 words as hexadecimal digits ('0'-'9', 'A'-'F'), one line each, with Text_DrawSmall; nothing references it
+# Game, module level (docs/names.md)
+0x08004C24 = "Game_Boot"          # the game's main state 0 (AgbMain's state table gMainStates[0]): sound, keys, the initial gGameState, the save at boot (Save_LoadAtBoot), then gMain.state 1
+0x08004C8C = "Level_SetFromIndex" # sets gGameState.world/level from a level index 0-92 (docs/save_format.md: 0-4 Training, then 3 a world, 38-92 Challenge)
+0x08004CE0 = "Level_Load"         # decompresses the level's world graphics and its three layers (KuruTools Levels.cs: WorldEntry/WorldInfo/LevelEntry) into VRAM and the maps
+0x08004F68 = "Level_StartTasks"   # starts a level's tasks: the world's tile animations (gWorldTileAnims), the effects, the song, the map's objects (LevelMap_Read)
+# Game, module play (docs/names.md)
+0x08008200 = "Play_MainState"     # the game's main state 3 (gMainStates[3]): the mode menu, the maps and menus of each mode and their levels, in sub-states gMain.subState
+0x08008660 = "Play_RunLevel"      # a level's loop, one state a frame: load (Level_Load), start, the linked players' wait, play (the Helirins, the pause menu), restart, the linked game's end
+0x08008C18 = "Play_CheckLevelEnd" # once a frame of play: the crash (flags bit 6), the goal (bits 2, 3), the demo's and Practice's ends; 1 when the level is finished, -1/2 when it is left
+0x080093B8 = "Play_MoveHelirinTo" # moves the Helirin towards a pixel by a speed (to the goal, a demo's targets); 0 once there
+# Game, module main (docs/names.md)
+0x080003FC = "Main_EndFrame"                 # ends a frame: m4aSoundMain, waits for the VBlank interrupt (gMain.intrFlags), the frame callback, gMain.frameCount, the keys
+0x08000450 = "Main_VBlankIntr"               # the VBlank handler: entry 0 of the interrupt table AgbMain installs (IE bit 0); sets gMain.intrFlags for Main_EndFrame
+0x08000478 = "Main_ClearKeys"                # clears gMain's key state (heldKeys..repeatTimer)
+0x080004A0 = "Main_ReadKeys"                 # reads KEYINPUT into gMain.heldKeys/newKeys/prevKeys/repeatKeys
+0x080004F8 = "Main_InstallLinkFrameCallback" # copies the I/O registers to their copies (DMA 3) and installs Main_LinkFrameCallback
+0x08000528 = "Main_LinkFrameCallback"        # the frame callback with the link cable: the frame's link exchange (Link_Exchange) when the serial interrupt is on, then OAM, I/O copies, transfers, layers
+0x0800065C = "Main_InstallFrameCallback"     # copies the I/O registers to their copies (BIOS CpuSet) and installs Main_FrameCallback
+0x08000680 = "Main_FrameCallback"            # the frame callback after the VBlank wait: OAM from gOamBuffer, the I/O register copies, the transfer queue, the layers' maps
+0x080006F8 = "Main_RunTransfersDma"          # runs the transfer queue gTransferQueue with DMA 3 and empties it
+0x080007CC = "Main_RunTransfersBios"         # runs the transfer queue with the BIOS (CpuSet/CpuFastSet) and empties it
+0x08000890 = "Main_QueueCopy"                # queues a copy (transfer mode 0); -1 when the queue is full
+0x080008F4 = "Main_QueueFill"                # queues a halfword fill (transfer mode 1); -1 when the queue is full
+0x08000958 = "Main_QueueBlockCopy"           # queues blocks of tiles, each to the next 0x400 bytes (transfer mode 2)
+0x080009C8 = "Main_BlockCopy"                # Main_QueueBlockCopy's copy done at once (DMA 3)
+0x08000A08 = "Heap_Init"                     # sets a heap up on a memory block: one free block in a ring with the heap's head
+0x08000A2C = "Heap_Free"                     # frees a block of a heap, merging free neighbours
+0x08000A70 = "Heap_Alloc"                    # the first free block big enough from the rover, split, cleared; NULL when none
+0x0801AB8C = "m4aSoundVSync"                 # m4a_1.s's m4aSoundVSync (pret): checks SOUND_INFO_PTR's 'Smsh' ident, counts pcmDmaCounter down and restarts the sound DMA; called from Main_VBlankIntr, as the SDK expects
+# Game, module task (docs/names.md)
+0x080040E0 = "Task_Init"         # sets the task heap gTaskHeap up on EWRAM 0x0203E000 (0x2000 bytes), no tasks
+0x08004104 = "Task_Create"       # KururinTAS kkk.txt PROC0 (08004104) CREATE_OBJECT: allocates a task from gTaskHeap and sets its function
+0x08004134 = "Task_Destroy"      # frees a task (Heap_Free) and counts it off gTaskCount
+0x08004154 = "Task_DestroyByKey" # frees every task whose key matches
+0x08004198 = "Task_RunAll"       # calls every task's function, round the heap's ring
+0x080041C0 = "Task_FindByKey"    # the first task whose key matches, or NULL
+# Game, module sprite (docs/names.md)
+0x08002438 = "Sprite_ClearLists"        # empties the 16 sprite lists and frees every sprite entry and affine set but the first 8
+0x0800246C = "Sprite_BuildOam"          # builds gOamBuffer from the 16 sprite lists in order, hides the rest, stores the 32 affine parameter sets
+0x08002528 = "Sprite_Alloc"             # hands out the next sprite entry and pushes it on a list; NULL when all 128 are taken
+0x08002580 = "Sprite_AllocMany"         # hands out count consecutive sprite entries on a list (Sprite_DebugTileGrid)
+0x080025E8 = "Sprite_InitRotations"     # affine sets 0-7: the rotations by the 8 directions 0, 0x20, ... 0xE0
+0x08002628 = "Sprite_AllocAffine"       # hands out the next of the 32 affine parameter sets, -1 when none is left
+0x08002648 = "Sprite_SetAffine"         # sets affine set n to {pa, pb, pc, pd}
+0x08002664 = "Sprite_SetAffineRotation" # sets affine set n to the rotation by a direction (gCosineTable, gSineTable)
+0x0800269C = "Sprite_SetAffineRotScale" # Sprite_SetAffineRotation scaled by 256 / scale
+0x08002700 = "Sprite_QueueTileList"     # queues the OBJ tile copies of a NULL-terminated list {src, tile, size, rows} (Main_QueueCopy's queue, each row 0x800 bytes on); -1 when the queue fills; nothing references it
+0x08002790 = "Sprite_DebugTileGrid"     # draws a 128x128 grid of OBJ tiles, shifted by Right/Down: an OBJ VRAM viewer no state reaches
+# Game, module bg (docs/names.md)
+0x08000AEC = "Bg_SetVideoMode"      # sets one of 10 video setups: the DISPCNT/BGxCNT/blend register copies and each layer's VRAM, size and buffer
+0x08001258 = "Bg_InitMap"           # sets a map up on a layer with its tiles, width and height, and draws it from (0, 0)
+0x08001284 = "Bg_ScrollMap"         # moves a map to (x, y), wrapping round its edges, and redraws its layer's buffer
+0x08001480 = "Bg_ScrollMapClamped"  # moves a map to (x, y) and redraws its layer's buffer, blank outside the map
+0x080016E0 = "Bg_DrawLevelMinimap"  # draws a minimap from a level's data (the Challenge menu when the level has no minimap layer, src/challenge.c; Practice, the Adventure map)
+0x08001814 = "Bg_LoadPicture"       # map 2 as a 30x20 map of tiles 0-599 in order, its tiles and palette: a full-screen picture
+0x08001888 = "Bg_WindowLineIntr"    # the VCount handler Bg_StartWindowCircle installs: starts DMA 0 copying gWindowLines to WIN0H at each HBlank
+0x080018B8 = "Bg_StartWindowCircle" # starts the circular window effect at (x, y), radius r: window 0, the VCount handler Bg_WindowLineIntr
+0x08001930 = "Bg_DrawWindowCircle"  # draws a circle of radius r around (x, y) into gWindowLines (midpoint circle algorithm): the window shape
+0x08001ACC = "Bg_LoadScreen"        # sets up the background maps, tiles and palettes of screen n (0-18) of the menus
+0x08002240 = "Bg_LoadMap8bpp"       # Bg_LoadMap for 8bpp tiles
+0x0800233C = "Bg_LoadMap"           # decompresses a tile map into a layer's VRAM row by row and copies the tiles its list names
+# Game, module objects (docs/names.md)
+0x08015890 = "Object_SpringUp"         # map tile 0xF8 (LevelMap_Read): KuruTools' SPRING_IDS, KururinTAS spring.txt 'UP 248'; bumps the Helirin up (Helirin_Bump dir 0, 0x100 = spring.txt's 65536)
+0x08015A30 = "Object_SpringDown"       # tile 0xF8 flipped vertically (spring.txt 'DOWN 2296' = 0xF8 | 0x800): bumps down (dir 0x80); in world 0 both Helirins
+0x08015D50 = "Object_SpringRight"      # tile 0xF9 (spring.txt 'RIGHT 249'): bumps right (dir 0x40)
+0x08015EEC = "Object_SpringLeft"       # tile 0xF9 flipped horizontally (spring.txt 'LEFT 1273' = 0xF9 | 0x400): bumps left (dir 0xC0)
+0x0801608C = "Object_Roller"           # tile 0xF7, KuruTools' Roller (Dir, StartTime, Period, Speed): fires an Object_RollerProjectile every period
+0x080161A0 = "Object_RollerCatcher"    # tile 0xF6, KuruTools' Roller Catcher (Dir only): one sprite
+0x08016264 = "Object_RollerProjectile" # a Roller's projectile (KuruTools: 'Speed of the projectiles'): flies until the map ahead is solid, pushes a Helirin it hits
+0x080164A4 = "Object_Piston"           # tile 0xF5, KuruTools' Piston (Dir 0-3, StartTime, WaitPeriod, MovePeriod): swings out and back along its direction
+0x080166E0 = "Object_TurnInArc"        # turns a byte direction towards another by a step, kept inside an arc (the Shooter's MinDir..MaxDir)
+0x0801677C = "Object_Shooter"          # tile 0xF4, KuruTools' Shooter (MinDir, MaxDir, StartTime, Period): turns towards the Helirin within its arc and fires Object_ShooterShot
+0x080169B0 = "Object_ShooterShot"      # a Shooter's shot: flies along its direction, pushes a Helirin it hits
+# Game, module hud (docs/names.md)
+0x08016BF4 = "Hud_Init"             # a level's HUD: the face animation by maxLives and lives, and one Hud_UpdateLifeIcon task per life
+0x08016C6C = "Hud_UpdateLifeIcon"   # task n: the icon of life n, shown (growing in, then still) while the current Helirin has at least n lives
+0x08016DD4 = "Hud_Draw"             # the HUD sprites: the face (its animation's OBJ tiles), the lives, the hurt marks, the linked game's number
+0x08017090 = "Hud_DrawTimes"        # draws gGameState.timer and gGameState.bestTime on their frames
+0x08017154 = "Hud_DrawLinkProgress" # the linked game's progress bar: each player's Helirin at x 0x50 + 2 * progress
+# Game, module save (docs/names.md)
+0x08005178 = "Save_LoadAtBoot"     # the save at boot (Game_Boot): the erase question, the signature, each bank's checksum, the damaged-save message and the format
+0x080054E4 = "Save_Write"          # writes gSaveBank to the SRAM bank not in use, its checksum, then makes it the bank in use (WriteSram/VerifySram)
+0x080055C0 = "Save_ResetFile"      # resets save file n (docs/save_format.md): number, empty name ("GUEST" for file 0), unlocks 0x20400, times 216000, marks 0
+0x0800562C = "Save_ResetFiles"     # Save_ResetFile for the five files 0-4
+0x08005644 = "Save_ResetRecords"   # resets every level record (docs/save_format.md) to 216000 frames "--------", then the two "Hare" records from gLevelTimes / gEasyLevelTimes
+# Game, module files (docs/names.md)
+0x0800B8A0 = "Files_MainState"         # the game's main state 2 (gMainStates[2]): the file select, then name entry or the delete screen
+0x0800BAA4 = "Files_FileMenuItem"      # the file select menu's items (Menu protocol 0x100..): each file's name, mode, world and level; item 6 "delete saved data"
+0x0800BC70 = "Files_EnterName"         # the name entry screen: edits a file's name (8 characters, Start fills in "Kururin"), then Save_Write
+0x0800BD98 = "Files_NameEntryItem"     # the name entry menu's items: the name, the three kinds (upper, lower case, kana) and the character grid
+0x0800C2F8 = "Files_DeleteScreen"      # the "delete saved data" screen: pick a file, confirm, Save_ResetFile and Save_Write
+0x0800C410 = "Files_DeleteMenuItem"    # the delete screen's file menu items (as Files_FileMenuItem)
+0x0800C60C = "Files_DeleteConfirmItem" # the delete confirmation's items: the file's name, two text lines, Yes (1) / No (-1)
+# Game, module text (docs/names.md)
+0x08002848 = "Text_FormatTime"             # writes a frame count as the time MM'SS"CC (60 frames a second, gFrameHundredths)
+0x080028EC = "Text_DrawSmall"              # draws a string in the 8x8 font (tile c - 0x20); 0xDE/0xDF marks combine (gDakutenChars, gHandakutenChars)
+0x080029C4 = "Text_DrawSmallHex"           # draws the low digits nibbles of a value in hexadecimal with Text_DrawSmall
+0x08002A20 = "Text_DrawSmallBinary"        # draws the low digits bits of a value in binary with Text_DrawSmall
+0x08002A6C = "Text_DrawSmallNumber"        # draws a signed number in decimal with Text_DrawSmall, no leading zeros
+0x08002B30 = "Text_DrawSmallNumber5"       # draws a u16 as five right-aligned decimal digits with Text_DrawSmall
+0x08002BF4 = "Text_DrawSmallNumber3"       # draws a u8 as three right-aligned decimal digits with Text_DrawSmall
+0x08002C60 = "Text_DrawSmallNumberAligned" # Text_DrawNumberAligned drawn with Text_DrawSmall (docs/skipped.md: the same code, gPowersOf10)
+0x08002CD8 = "Text_DrawSmallTime"          # draws a frame count as a time (Text_FormatTime) with Text_DrawSmall; 60 minutes: "--'--\"--"
+0x08002D20 = "Text_DrawTime"               # draws a frame count as a time (Text_FormatTime) with Text_Draw; 60 minutes: "--'--\"--"
+0x08002D68 = "Text_Draw"                   # draws a string in the 8x16 font (tile 0xE0 + 2 * c); 0xDE/0xDF marks combine
+0x08002E44 = "Text_DrawNumber"             # draws a signed number in decimal with Text_Draw, no leading zeros
+0x08002F08 = "Text_DrawNumberAligned"      # draws a number right-aligned in digits characters with Text_Draw (gPowersOf10)
+0x08002F80 = "Text_PrintSmall"             # prints a string in the 8x8 font from the text cursor: '\n', the escapes #h, #k, #p, the marks
+0x080030E4 = "Text_Print"                  # Text_PrintSmall in the 8x16 font
+0x0800324C = "Text_DrawDigitTime"          # draws a frame count as a time with Text_DrawDigits; 60 minutes: "--'--\"--"
+0x080032AC = "Text_DrawDigits"             # draws the digits, ' " and - of a string with the digit tiles 0x40 + 2 * digit, 0x54-0x58
+0x08003384 = "Text_GetDakutenChar"         # gDakutenChars[code - 0x80]: the character a dakuten mark (0xDE, JIS X 0201) makes of code
+0x0800339C = "Text_GetHandakutenChar"      # gHandakutenChars[code - 0x80]: the character a handakuten mark (0xDF, JIS X 0201) makes of code
+0x080033B4 = "Text_ConvertToU16"           # copies a string as halfword characters: #h/#k (hiragana) applied, the marks combined
+0x08003464 = "Text_Convert"                # copies a string with #h/#k applied (hiragana: 0xA6-0xBF down, 0xC0-0xDD up by 0x20); the name entry's kana
+0x080034B4 = "Text_DrawSmallName"          # Text_DrawSmall with proportional lower case (gSmallFontWidths), then the rank mark gSmallRankMarks[rank] (callers pass a file's or record's name and rank)
+0x080035F4 = "Text_DrawName"               # Text_Draw with proportional lower case (gFontWidths), then the rank mark gRankMarks[rank] (callers pass a file's or record's name and rank)
+0x08003738 = "Text_DrawSmallProportional"  # Text_DrawSmall with proportional lower case (gSmallFontWidths), without a rank mark; nothing calls it
+0x08003828 = "Text_DrawProportional"       # Text_Draw with proportional lower case (gFontWidths), without a rank mark; nothing calls it
+0x0800391C = "Text_PrintSmallProportional" # Text_PrintSmall with proportional lower case
+0x08003A98 = "Text_PrintProportional"      # Text_Print with proportional lower case (gFontWidths)
+# Game, module menu (docs/names.md)
+0x0800459C = "Menu_RunWrap"             # Menu_Run with Menu_MoveWrap: up/down move the current item, wrapping around
+0x08004604 = "Menu_RunLeftRightWrap"    # Menu_Run with Menu_MoveLeftRightWrap: left/right, wrapping around
+0x0800466C = "Menu_Run"                 # a menu's frame: moves the current item on the keys (Menu_Move), calls its function with it (the result), then draws: 0xFFFF, 0x100 + each item, 0x1FF
+0x080046D4 = "Menu_RunLeftRight"        # Menu_Run with Menu_MoveLeftRight: left/right, stopping at the ends
+0x0800473C = "Menu_RunSelect"           # Menu_Run with Menu_MoveSelect: Select steps through the items
+0x080047A4 = "Menu_Draw"                # Menu_Run's drawing calls alone: 0xFFFF, 0x100 + each item, 0x1FF
+0x080047F8 = "Menu_MoveWrap"            # moves the current item on up/down within 1..itemCount, wrapping around; song 0x20 when it moved
+0x08004858 = "Menu_MoveLeftRightWrap"   # moves the current item on left/right, wrapping around; song 0x20
+0x080048B8 = "Menu_Move"                # moves the current item on up/down within 1..itemCount, stopping at the ends; song 0x20
+0x08004910 = "Menu_MoveLeftRight"       # moves the current item on left/right, stopping at the ends; song 0x20
+0x08004968 = "Menu_MoveSelect"          # moves the current item to the next on Select, back to 1 after the last; song 0x20
+0x080049AC = "Menu_StepValueWrap"       # steps a value within 0..max on left/right, wrapping around; song 0x20 when it changed
+0x080049F8 = "Menu_StepValueUpDownWrap" # steps a value within 0..max on up/down, wrapping around; song 0x20
+0x08004A44 = "Menu_StepValue"           # steps a value within 0..max on left (down) / right (up), stopping at the ends; song 0x20
+0x08004A88 = "Menu_StepValueReversed"   # Menu_StepValue with right down and left up
+0x08004ACC = "Menu_StepValueUpDown"     # Menu_StepValue on up (down) / down (up)
+0x08004B10 = "Menu_StepValueLR"         # Menu_StepValue on L (down) / R (up)
+0x08004B58 = "Menu_StepValueLRWrap"     # Menu_StepValueWrap on L / R
+0x08004BA8 = "Menu_StepValueBy10"       # steps a value within 0..max by 10 on L/R and by 1 on left/right, wrapping around; song 0x20
+# Game, module mode_menu (docs/names.md)
+0x0800C75C = "ModeMenu_Run"                  # the mode menu screen with its own frame loop (Play_MainState): Practice, Adventure (Normal/Easy), Challenge, the linked game (waiting for a partner, the MultiBoot send), Make Up; returns the mode, -1 on B
+0x0800D2F8 = "ModeMenu_DrawCursor"           # the mode menu's cursor at an item: a 64x64 sprite through the six frames of gModeMenuCursorFrames
+0x0800D390 = "ModeMenu_DrawDescription"      # the description of the current mode menu item: its OBJ tiles (gModeMenuDescriptionTiles) copied when the item changed, drawn as 15 sprites
+0x0800D434 = "ModeMenu_DrawMultiBootLabel"   # the five 32x16 sprites (gMultiBootLabelTiles) ModeMenu_Run draws, blinking, while it sends the MultiBoot image
+0x0800D4F4 = "MapScreen_GetLevelDataSize"    # the uncompressed size of the current level's data (KuruTools LevelEntry, layer 0): 0 for a level that does not exist
+0x0800D518 = "MapScreen_ShowPicture"         # shows a window of an 8bpp picture at a pixel: its tile rows to a layer's tiles, the layer scrolled by the rest
+0x0800D58C = "MapScreen_ShowMap"             # the map picture on BG 2: the training map (gTrainingMapPicture) for levels 0-4, else the world map (gWorldMapPicture) scrolled to the level
+0x0800D690 = "MapScreen_Run"                 # the Adventure map screen with its own frame loop: the level menu (MapScreen_LevelMenuItem), the path, the level cursor and world tasks; returns 0 when a level starts, -1 on B
+0x0800DB44 = "MapScreen_LevelMenuItem"       # the map screen's level menu items: item 1 picks the level (Menu_StepValue); 0x101 the file's name and time and the level's "TOP3" records
+0x0800DD54 = "MapScreen_UpdatePath"          # a map screen task: a marker per level along the path (gTrainingMapPositions, gMapLevelPositions) by its mark, dots between levels
+0x0800E0D8 = "MapScreen_UpdateCursor"        # a map screen task at the current level's position: the animated cursor (gMapCursorAnim) and the mark of a level whose bonus is not taken
+0x0800E22C = "MapScreen_UpdateSlidingCursor" # MapScreen_UpdateCursor that slides from the old level to a newly opened one in 60 frames (MapScreen_Run in mode 1)
+0x0800E4BC = "MapScreen_UpdateWorldIcon"     # a map screen task: the current world's icon (gWorldIconFrames, two frames a world) at (0xA8, 0x80), sliding between worlds
+# Game, module pause (docs/names.md)
+0x08009438 = "Pause_Update"           # the pause menu, once a frame of a level (Play_RunLevel): Start opens/closes it (gGameState.paused), runs the menu, See Map or Make Up; the linked game's shared menu; its result
+0x080098C0 = "Pause_MenuItem"         # the pause menu's items in modes 1-3 (see_map input: See Map, Play Again, Make Up, Quit): 2 play again, -1 quit
+0x08009C44 = "Pause_PracticeMenuItem" # the pause menu's items in Practice (mode 5): See Demo (sets GAME_FLAG_DEMO), See Map, Play Again, Make Up, Quit
+0x0800A008 = "Pause_DemoMenuItem"     # the pause menu's items in a Practice demo (save_practice input: next area, See Map, in-place Make Up, Quit Demo)
+0x0800A48C = "Pause_LinkMenuItem"     # the linked game's pause menu items (player 0's keys): item 1 returns 2, item 2 -1
+0x0800A760 = "Pause_SeeMap"           # See Map (pauseScreen 1): gGameState.flags bit 0 (the free camera, see_map input), four blinking arrows; B returns to the menu
+0x0800A88C = "Pause_MakeUp"           # the in-place Make Up (pauseScreen 2, save_practice input): L steps the Helirin's type, R its colour among the unlocked ones, saved (Save_Write); B returns
+# Game, module results (docs/names.md)
+0x0800AA0C = "Results_Run"         # the result screen over the level (Play_MainState at a level's end): Results_EnterRecord, the bonus taken, saves; the times, the records (the new one blinking); A or B closes the window
+0x0800B000 = "Results_CheckRankUp" # the rank-ups (save_ending input): while every level's best time beats the next rank's gLevelTimes, shows the rank-up text, raises the file's rank, enters the Master records; saves
+0x0800B36C = "Camera_Update"       # the camera origin gCameraX/gCameraY: centred on the Helirin, or moved by the D-pad (See Map, flags bit 0); clamped to gCamera's bounds; scrolls maps 1-3 (map 3 parallax)
+0x0800B604 = "Results_EnterRecord" # enters the level's result in the save file (marks[], flags bits 1-2) and its three records (sorted by time); returns the place, 4 | place for a new one, 8 for mark 2
+# Game, module level_map (docs/names.md)
+0x080057B8 = "LevelMap_ParseNumber"       # the number at the start of a map string in the game's digits 0xE0-0xE9
+0x080057DC = "LevelMap_ReadNumber"        # LevelMap_ParseNumber at gMapReadCursor, which it moves past the number
+0x0800580C = "LevelMap_Read"              # reads a level map (Level_StartTasks): the start, healing and goal tiles (0xED-0xFF) into gCamera, the camera bounds, the objects and the bonus it starts
+0x08005D78 = "LevelMap_StartMarkedObject" # starts the object after marker 0xF1 with a given number (map code 0xF0, LevelMap_Read) at a tile
+# Game, module level_intro (docs/names.md)
+0x0800F624 = "LevelIntro_Run"           # the screen before a level (Play_MainState sub-state 3): OBJ tiles by world and level; for the first level of worlds 1-10 a picture and its animation (A/B); then LevelIntro_PlayStartAnim
+0x0800F954 = "LevelIntro_PlayStartAnim" # the animation that ends LevelIntro_Run: gLevelStartAnim's pictures on BG 2 with songs 0x4A-0x4D, until it ends or A/B
+# Game, module challenge (docs/names.md)
+0x0800FAAC = "Challenge_Run"      # the Challenge course menu (world 12, mode 3; save_challenge input): rows of five courses, the selected one's minimap; A starts it (0), B -1
+0x0800FDC8 = "Challenge_MenuItem" # the Challenge course menu's items: the column, the scrolled rows of courses with their marks, the selected course's best time and records
+# Game, module practice (docs/names.md)
+0x08018D34 = "Practice_Run"          # Practice (mode 5, save_practice input): the map screen's level menu and tasks, then the area menu of the level; A picks the area (0), B -1
+0x080191F8 = "Practice_AreaMenuItem" # Practice's area menu items: a frame around the rows, "Area1".."Area4" one per area (gLevelAreaCounts)
+# Game, module bonus (docs/names.md)
+0x08018330 = "Bonus_UpdateColor"      # the level's colour bonus (a LevelMap_Read task): touched, it swaps its colour with the Helirin's for a while (Helirin_SetColor), sets GAME_FLAG_BONUS_TAKEN
+0x080184DC = "Bonus_UpdateType"       # the level's type bonus: touched (Collision_FindPointInShapes), it swaps its Helirin type with the Helirin's for 0x79 frames (Helirin_SetSize), song 0x47, GAME_FLAG_BONUS_TAKEN
+0x0801866C = "Bonus_UpdateItem"       # the level's item bonus (unlocks bits 0-9): touched, GAME_FLAG_BONUS_TAKEN, song 0x47, and a Bonus_UpdateWornItem task takes over
+0x080187EC = "Bonus_UpdateWornItem"   # an item the Helirin wears (taken, or the save file's items): follows a Helirin point, flies off when the Helirin is hit and homes back
+0x08018B34 = "Bonus_DrawColorIcon"    # a task drawing a colour bonus's 16x16 sprite (gColorBonusTilesA/B); nothing starts it
+0x08018BC8 = "Bonus_DrawTypeIcon"     # Bonus_DrawColorIcon with a type bonus's tiles (gTypeBonusTiles); nothing starts it
+0x08018C3C = "Bonus_UpdateMakeUpIcon" # the Make Up screen's icon of an unlocked item (one task per set bit 0-9), animated (gItemAnims) while the item is worn
+# Game, module collection (docs/names.md)
+0x0800EF44 = "Collection_Run"           # the bonus collection screen: mode 0 after a level whose bonus was taken (one picture per item unlocked), 1 the ending's pictures 0x10-0x1B, 2-3 variants; the window opens, A/B or 300 frames, closes
+0x0800F2A8 = "Collection_UpdatePicture" # the task of one picture of the collection screen: its OBJ tiles, position and animation by picture, drawn as one or two sprites
+# Game, module makeup (docs/names.md)
+0x080131F8 = "Lives_Reset"            # resets gLivesSettings to gDefaultLivesSettings (Game_Boot)
+0x08013210 = "Lives_Init"             # sets a Helirin's lives (and maxLives) and size by game mode from gLivesSettings (Helirin_Init, Play_RunLevel)
+0x080133A8 = "MakeUp_StartWornItems"  # starts a Bonus_UpdateWornItem task for each item worn (the save file's items bits 0-9)
+0x080133E4 = "MakeUp_Run"             # the Make Up screen (mode 7, save_makeup input): the Helirin types, colours and items unlocked; B restores them, a choice saves (Save_Write)
+0x080135E8 = "MakeUp_MenuItem"        # the Make Up menu's items: three rows of five types, a row of seven colours and End, the items toggled on and off
+0x08013A58 = "Lives_SettingsScreen"   # a screen with its own frame loop over a copy of gLivesSettings (docs/remaining.md); nothing references it
+0x08013B5C = "Lives_SettingsMenuItem" # Lives_SettingsScreen's menu function: the lives of each mode stepped with Menu_StepValueWrap
+# Game, module effects (docs/names.md)
+0x08017270 = "Effect_OpenWindow"             # a task: the circular window (Bg_StartWindowCircle) grows by 8 a frame up to 0xA0, then the window is turned off
+0x080172C8 = "Effect_CloseWindow"            # a task: the circular window shrinks from 0xA0 by 8 a frame to 0, then BG0 and the window are turned off
+0x08017320 = "Effect_BrightnessUp"           # a task: BLDY (gBldyCopy) from 0 up to 16, 0x80/0x100 a frame
+0x0801737C = "Effect_BrightnessDown"         # a task: BLDY from 16 down to 0, 0x80/0x100 a frame
+0x080173CC = "Effect_RotateBg2"              # a task: turns BG2 by half the frame counter around the screen's centre
+0x08017464 = "Effect_UpdateCrash"            # the crash (Helirin flags bit 6, Helirin_Update): a 64x64 animation (gCrashAnim) at the Helirin
+0x08017520 = "Effect_UpdateHitSpark"         # the spark Helirin_UpdateCollision starts at each point that hits a wall (gHitSparkAnim)
+0x080175BC = "Effect_UpdateZoneHitRipple"     # Effect_UpdateHitSpark with gZoneHitRippleAnim: for a Helirin whose flags have 0x40008 (bit 18 in a zone, bit 3); kurutest --shot of the original (training1_moves, frames 1755-1769): blue rings at the hit point in a healing zone, where the normal hit shows a yellow star
+0x08017658 = "Effect_UpdateSpringSpark"      # the spark Object_SpringDown starts when a Helirin bounces off it (gSpringSparkAnim)
+0x080176F4 = "Effect_UpdateTimePenalty"      # the 3 s penalty (Helirin_UpdateCollision adds 0xB4 frames to the timer): a sprite rising for 0x1E frames
+0x0801776C = "Effect_Firework"               # a one-frame task: 32 Effect_UpdateFireworkSpark sprites thrown from a random point, song 0x50 (the goal, the results, the ending)
+0x08017934 = "Effect_UpdateFireworkSpark"    # one sprite thrown by Effect_Firework: slowed and falling, for a number of frames
+0x080179C8 = "Effect_UpdateGoal"             # the goal's palette animation (BG palettes 11-12, gGoalAnim, gGoalReachedAnim) and, once a Helirin is there (flags bit 3), its fireworks
+0x08017AC8 = "Effect_CyclePalette"           # a level task: cycles the first BG colours through the world's colour sets (KuruTools addr7, gPaletteCycleAnim)
+0x08017B48 = "Effect_AnimateCopies"          # a task: an animation whose frames queue a copy each (Main_QueueCopy)
+0x08017BA8 = "Effect_AnimateBlockCopies"     # a task: an animation whose frames queue a block copy each (Main_QueueBlockCopy): the world's tile animations (gWorldTileAnims)
+0x08017C08 = "Effect_UpdateGoalBanner"       # a banner (gGoalBannerTiles) moving left across the screen when a Helirin reaches the goal (flags bit 2, Play_CheckLevelEnd)
+0x08017CCC = "Effect_UpdateLinkEndBanner"    # the linked game's banner (gLinkEndBannerTiles) once all but one Helirin reached the goal (Play_CheckLevelEnd)
+0x08017D90 = "Effect_UpdateTimeUpBanner"     # the linked game's banner (gTimeUpBannerTiles) shown for 0x78 frames when a Helirin's timer passes 0x2A2F (Play_CheckLevelEnd)
+0x08017E3C = "Effect_UpdateLinkResultBanner" # the linked game's banner that slides in with the players' numbers under it; started by Vs_RunResults (link only, so no screenshot)
+0x0801805C = "Effect_DrawDemoLabel"          # a task in a demo (GAME_FLAG_DEMO, Play_RunLevel): two blinking sprites at the top right (gDemoLabelTiles); kurutest --shot of the original (save_practice, See Demo, frames 2000-2032): the word "Demo", green and white
+0x080180E4 = "Effect_UpdateLinkCountdown"    # the linked game's countdown before the start (Play_RunLevel state 2): songs 0x3F, 0x40, then the Helirins go
+# Game, module intro (docs/names.md)
+0x08005F24 = "Intro_MainState"            # the game's main state 1 (gMainStates[1]): the intro and the title screen (boot_attract input), its tasks and the "PRESS START" menu
+0x08006068 = "Intro_MenuItem"             # the intro's one-item menu: "PRESS START" blinking; A or Start on the title goes to main state 2, earlier it skips to the title
+0x080060F4 = "Intro_StartBackgroundTasks" # starts Effect_RotateBg2 and three Effect_AnimateCopies tasks: the animated background of the menu screens (file select, mode menu, Make Up)
+0x08006178 = "Intro_Update"               # the intro's timeline task on gMain.frameCount: its backgrounds, scrolling layers, fades, the sprites and tasks it starts at set frames, the title (sub-state 4-5)
+0x08006B08 = "Intro_UpdateBgAnim"         # an intro task: an animation of BG map 1 pictures (gIntroBgAnim) from frame 0x3FC to 0x7E9
+0x08006BA4 = "Intro_UpdateTiltedHelirin"   # an intro task from frame 0x7EA: a 64x32 sprite of 18 frames moved by a direction animation (gIntroTiltedHelirinPath); kurutest --shot of the original (boot_attract, frames 2160-2300): a spinning Helirin drawn flattened (18 pre-drawn rotation frames) flying along the canyon of the title map
+0x08006CA8 = "Intro_UpdateHelirin"        # an intro task from the title (frame 0x9DC): a rotating Helirin (OBJ tiles from gHelirinGfx) as a double-size affine sprite
+0x08006E2C = "Intro_UpdateMovingHelirin"  # Intro_UpdateHelirin with its own tiles, moved by a direction animation (gIntroHelirinPath); at the title it takes the Helirin's tiles
+0x0800709C = "Intro_UpdateSprite"         # one of the intro's 15 sprites: its own timeline of the frame counter, animated tiles, freed off screen
+# Game, module ending (docs/names.md)
+0x080076FC = "Ending_MainState"        # the game's main state 4 (gMainStates[4]): the ending (save_ending input) after Collection_Run(1): its tasks, the music; sets flags bit 5 (the ending seen) and saves; A/Start returns to the intro
+0x08007868 = "Ending_UpdateBackground" # the ending's background task: the intro's BG tiles and layers scrolled left, blending, the windows, the twelve Ending_UpdateSprite tasks
+0x08007ADC = "Ending_UpdateSprite"     # one of the ending's 12 sprites: Intro_UpdateSprite going the other way (walking left)
+0x08007EEC = "Ending_UpdateText"       # the ending's text: a page of gEndingText at a time, its letters started column by column (Ending_UpdateLetter)
+0x080080AC = "Ending_UpdateLetter"     # a letter of the ending's text: runs in bouncing, stands, runs on
+# Game, module sound (docs/names.md)
+0x080181FC = "Sound_PlaySong"              # m4aSongNumStart, after m4aSoundMode(gSongSoundModes[song] << 8) when gSoundInfo.maxChans differs
+0x0801822C = "Sound_PlaySongOrChange"      # Sound_PlaySong with m4aSongNumStartOrChange
+0x0801825C = "Sound_PlaySongOrContinue"    # Sound_PlaySong with m4aSongNumStartOrContinue
+0x0801828C = "Sound_UpdateDelayedSong"     # a task: counts unkA frames down (not while paused), then Sound_PlaySong(unk8) and frees itself
+0x080182C0 = "Sound_UpdateDelayedSongOnly" # Sound_UpdateDelayedSong with m4aSongNumStart (no sound mode)
+0x080182F4 = "Sound_UpdateSongAfterPlayer" # a task: waits for a music player to stop, counts a delay down, then Sound_PlaySong and frees itself
+# Game, module util (docs/names.md)
+0x080041F4 = "Random_SetIndices"     # sets both indices into gRandomTable (gRandomIndex, gRandomIndex2) to a value (Level_Load)
+0x08004208 = "Random_Next"           # the next byte of gRandomTable at gRandomIndex (wrapping at 256): the game's random numbers (Effect_Firework, the linked game)
+0x08004224 = "Random_Get"            # entry n of gRandomTable
+0x08004234 = "Random_Next2"          # Random_Next at the second index gRandomIndex2
+0x08004250 = "Random_Reset"          # copies gRandomTableInit over gRandomTable (DMA 3)
+0x08004274 = "Random_Shuffle"        # shuffles gRandomTable from a seed (Intro_MainState seeds it with the frame counter)
+0x080042AC = "Util_GetScreenPos"     # a map position relative to the camera (gCameraX, gCameraY); 0 when within a margin of the screen, else -1
+0x080042F8 = "Util_IsOnScreen"       # Util_GetScreenPos without storing the screen position
+0x08004348 = "Util_StepTowards"      # moves a value towards another by at most a step (at least 1)
+0x08004374 = "Util_StepTowardsS8"    # Util_StepTowards for signed bytes
+0x080043C4 = "Link_FindCommand"      # the linked players (bits of a mask) whose received entry of gLinkRecvData has a command's high byte
+0x08004428 = "Link_FindCommandExact" # Link_FindCommand comparing both bytes of the command
+0x08004478 = "Util_GetDirection"     # the byte direction (gSineTable's index) of a vector, from gDirectionTable
+0x080044CC = "Anim_Start"            # starts an animation entry {frames, value} on an Anim: 1, -1 at the end, 3 after a jump (a negative count)
+0x08004504 = "Anim_Step"             # advances an Anim by a frame: -1 at the end, 0 while the frame lasts, else Anim_Start's result for the next entry
+0x08004534 = "Anim_StartLong"        # Anim_Start for a LongAnim (8-byte entries with u32 values)
+0x0800456C = "Anim_StepLong"         # Anim_Step for a LongAnim
+# Game, module decompress (docs/names.md)
+0x08004030 = "Decompress_RLE" # decompresses run-length data: 0-0x7F literals, 0x80 + n a byte repeated n + 3 times; size or 0
+0x08004084 = "Decompress_LZ"  # decompresses KuruTools' LZ format (KuruRomExtractor/LzCompression.cs): literals and back references; size or 0
+# Game, module script (docs/names.md)
+0x0800E560 = "Script_Step"                 # steps a script of pictures to its next stop: BG palettes and maps, OBJ tiles and their palette; -1 at its end
+0x0800E664 = "Script_Run"                  # a screen showing a script of pictures (Play_MainState, Results_CheckRankUp), stepped by A/B: mode 0 before a level, 1 after one, 2 the first Adventure (with the "skip training" menu), 3 all ten items, 4 the items missing, 5 a rank-up
+0x0800EDA8 = "Script_SkipTrainingMenuItem" # the two-item menu of Script_Run's mode 2: the second item marks levels 0-4 as skipped (marks 1, save_files input "skip training")
+# Game, module vs (docs/names.md)
+0x0801016C = "Vs_WaitForConsoles"    # a frame of waiting for the linked consoles after the MultiBoot transfer: "ID ERROR!" or "TIME OUT!" and -1, 1 while waiting, 0 once all answer
+0x0801021C = "Vs_CheckMenuLink"      # Vs_CheckLevelLink's code for the linked game's menus (Vs_RunMenus, Vs_RunResults)
+0x080102D8 = "Vs_CheckLevelLink"     # the link check of a linked level (Play_RunLevel states 2-3): "ID ERROR!", "TIME OUT!" (restarts the link), else whether every console answered
+0x08010394 = "Vs_RunMenus"           # the linked game's menus before a level (mode 4, Play_MainState): the settings, the course (Vs_NextCourse picks a Challenge course row by 5)
+0x08011614 = "Vs_MatchMenuItem"      # the first menu of Vs_RunMenus (state 5): item 1 a match of random courses whose rounds its unkE picks (gUnk_080C4844: 3, 5, 7, 0 no end, into gGameState.unk2E, which ends the match in Vs_RunResults), item 2 the course list (state 9)
+0x08011700 = "Vs_CourseRowsMenuItem" # Vs_RunMenus states 6-7: two values 0-9 (unkE, unk10), the rows of Challenge courses the random courses come from (gGameState.unk32 = the bits between them; Vs_NextCourse / 5)
+0x08011890 = "Vs_CourseListMenuItem" # Vs_RunMenus states 9-10: rows 1-11 of five Challenge courses (column unkE); the course (current - 1) * 5 + unkE becomes the level (state 10), as in Challenge_MenuItem
+0x08011BD8 = "Vs_PlayerSettingsItem" # a linked game menu function: each player's Helirin size and lives, a row per player with its Helirin
+0x08011FF8 = "Vs_RunResults"         # the linked game's results after a level (Play_MainState): 1 plays another round (Vs_RunMenus)
+0x08012938 = "Vs_ResultsMenuItem"    # Vs_RunResults's first results menu function: ranks, times and numbers per player
+0x08012BE0 = "Vs_ResultsMenuItem2"   # the twin of Vs_ResultsMenuItem (items 0x101/0x102, Vs_DrawNumberRight)
+0x08012F58 = "Vs_DrawNumberRight"    # Vs_DrawNumber right-aligned in five cells, then a 16x8 sprite (tile 0x1D8)
+0x08013040 = "Vs_DrawNumber"         # draws a number in decimal with the digit tiles 0x40 + 2 * d (Sprite_Alloc(3)), no leading zeros
+0x080130F8 = "Vs_DrawSpinner"        # a spinning sprite (attribute 2 0x6AC: tile 0x2AC, priority 1) at x = a * 240 / b: a progress marker; Vs_RunMenus calls it with the bytes of a link transfer sent and their total, under a blinking "WAIT" (gUnk_0801EC1C); link only, so no screenshot
+0x08013168 = "Vs_ShuffleCourses"     # fills gVsCourseOrder with 0..54 (the 55 Challenge courses) and shuffles it (Vs_NextCourse)
+0x0801319C = "Vs_NextCourse"         # the next course of gVsCourseOrder, swapping two entries (Random_Next) as it goes; Vs_RunMenus divides it by 5 (a row of Challenge courses)
+# Game, module link (docs/names.md)
+0x08003C18 = "Link_Init"     # sets up the link cable in multi-player mode (SIOCNT 0x4003, 115200 bps) and gLinkState, copies crt0's ARM serial routines to IWRAM
+0x08003D14 = "Link_Exchange" # a frame of the link exchange (Main's linked frame callback): starts the transfers (the parent), Link_Receive into the received data, Link_Send; returns the status (gLinkStatus)
+0x08003E00 = "Link_Send"     # hands this frame's data to the exchange: a packet (frame counter, player bits, checksum) in gLinkState's send buffer
+0x08003EC4 = "Link_Receive"  # takes what each player sent from gLinkState's receive buffers (Link_Exchange)
+# Game, module debug (docs/names.md)
+0x080194D4 = "Debug_StageSelect"       # AgbMain's state function 5 (gMainStates[5]), which no code selects: a stage select ("GAME START", "MAP TEST", "RECORDING", "PLAYBACK"; "WORLD Z".."TEST", "STAGE", "AREA")
+0x0801970C = "Debug_StageSelectItem"   # Debug_StageSelect's menu function: the mode, the world, the stage and the area
+0x08019904 = "Debug_MultiBootTest"     # AgbMain's state function 6 (gMainStates[6]), which no code selects: a MultiBoot send test (MultiBootInit/Main/StartMaster)
+0x08019A98 = "Debug_MultiBootTestItem" # Debug_MultiBootTest's menu function: each client's state ("NOT CONNECTED", "CHECKING...", "READY") and the transfer's ("PUSH START", "NOW SENDING...", "BOOT CHECKING...")
+
+# Absolute ROM pointers inside the data: scripts/find_pointers.py (needs `make pointer-evidence`)
+# writes them to config/data_pointers.txt, and scripts/generate_asm.py emits each one as a
+# symbol so the linker relocates it (`make shift-test` proves it). See find_pointers.py.
+# Numbers the original build defined in its linker script and the code loads from literal
+# pools: m4a.c's NUM_MUSIC_PLAYERS ((u16)gNumMusicPlayers) and MAX_LINES ((u32)gMaxLines), as
+# in pret's projects (ld_script.txt). `pools`: the pool words that hold them.
+[linker_constants]
+gNumMusicPlayers = { value = 4, pools = [0x0801B240, 0x0801B3B0, 0x0801B3E8] }  # m4aSoundInit, m4aMPlayAllStop, m4aMPlayAllContinue
+gMaxLines = { value = 0, pools = [0x0801B564] }  # MPlayExtender
+
+# Data that a C module's .rodata provides (scripts/generate_asm.py): once every function of
+# `functions` is C, the linker places src/<module>.o(.rodata) at start (it must be exactly
+# end - start bytes) instead of the incbin; until then the module must emit no .rodata.
+[[rodata]]
+# agb_sram's version string "SRAM_V111", then the 4 words agbcc puts in .rodata for the
+# (otherwise folded) function address differences of ReadSram and VerifySram
+module = "agb_sram"
+start = 0x080C2798
+end = 0x080C27B4
+functions = ["ReadSram", "VerifySram"]
+
+[pointers]
+# m4a's gSongTable: the operand of m4aSongNumStart & co. (m4aSongNumStart..m4aSongNumContinue)
+song_table = 0x08021088
+# Where the game's (and m4a's) pointer tables are, as [start, end) pairs. Outside these and
+# the parsed m4a songs everything is graphics, maps or samples: in a full run of the
+# tests/gameplay inputs the original loads no ROM-valued word there with ldr/ldm.
+ranges = [
+    # first data byte (IntrMain's IRQ table) .. the first wave sample (voice group 0x0801F5AC)
+    [0x0801CB64, 0x08021320],
+    # after the last m4a song .. the first of the 4 graphics blocks gUnk_0801E82C points at
+    [0x080C2798, 0x080C63FC],
+]
+# Words in the ranges that hold a ROM address but are not pointers (each with a reason).
+not_pointers = []
+
+# Data symbols (name = address): RAM ones are written into the linker script, ROM ones are
+# labels in data/data.s (instead of gUnk_<address>). Pool words in the generated asm that
+# equal one of these addresses are emitted as the symbol.
+[symbols]
+gMain = 0x03000DC0            # main-loop state; +0 is KururinTAS's "Global Frame Counter"
+# m4a.c's RAM objects and tables (pret's names; the SDK functions that use them byte-match)
+SoundMainRAM_Buffer = 0x03000490  # char[0x400]: m4aSoundInit copies SoundMainRAM here
+gSoundInfo = 0x03004880       # struct SoundInfo; SOUND_INFO_PTR (0x03007FF0) points here
+gMPlayJumpTable = 0x03005830  # MPlayFunc[36]
+gCgbChans = 0x030058C0        # struct CgbChannel[4]
+gMPlayMemAccArea = 0x03005A80 # u8[0x10]
+gScaleTable = 0x0801F364      # MidiKeyToFreq
+gFreqTable = 0x0801F418       # MidiKeyToFreq
+gPcmSamplesPerVBlankTable = 0x0801F448  # SampleFreqSet
+gCgbScaleTable = 0x0801F460   # MidiKeyToCgbFreq
+gCgbFreqTable = 0x0801F4E4    # MidiKeyToCgbFreq
+gNoiseTable = 0x0801F4FC      # MidiKeyToCgbFreq
+gCgb3Vol = 0x0801F538         # CgbSound
+gXcmdTable = 0x0801F57C       # ply_xcmd
+gMPlayTable = 0x08021058      # struct MusicPlayer[4]: m4aSoundInit, m4aSongNumStart & co.
+gSongTable = 0x08021088       # struct Song[]: m4aSongNumStart & co. ([pointers] song_table)
+MultiBoot_required_data = 0x03000028  # u16[MULTIBOOT_NCHILD]: the SDK multiboot.c static, matched by MultiBootMain
+gHudHurtAnim = 0x03000018  # struct Anim: runs gHudHurtFrames when the Helirin is damaging (flags 0x808 == 0x800; KururinTAS kkk.txt bit 11 'Damaging (set the sprite of the face)'), with the hurt face gHudFaceTiles[6] (Hud_Draw)
+gHudFaceAnim = 0x03000020  # struct Anim: the HUD face's animation; each new frame copies gHudFaceTiles[value] to OBJ VRAM 0x06010B40, the face sprite's tiles (Hud_Draw)
+gTextPressStart = 0x0801E4B4  # "PRESS START": the title's blinking text (Intro_MenuItem)
+gLinkStatus = 0x030008EC  # u32, Link_Exchange's result: bits 0-3 the players whose data arrived, 4-6 and 0x80 (the parent) the link's state, bits 8-11 Link_Init's argument
+gLinkRecvData = 0x03000D50  # struct LinkData[4]: what each player sent (Link_Exchange), each enabled by a bit 0-3 of gLinkStatus (Link_FindCommand)
+gRandomTable = 0x03004280  # u8[256]: the random byte table (Random_Next, Random_Shuffle), reset from gRandomTableInit
+gTaskHeap = 0x03004260  # struct Heap the tasks come from: Task_Init sets it up on 0x0203E000 (0x2000 bytes), Task_Create/Task_Destroy allocate and free
+gTaskCount = 0x03004250  # s32, the tasks allocated from gTaskHeap: +1 in Task_Create, -1 in Task_Destroy, 0 in Task_Init
+gLivesSettings = 0x03004520  # struct LivesSettings (12 bytes), set from gDefaultLivesSettings by Lives_Reset; Lives_Init gives a Helirin its lives and size from it by mode
+gDefaultLivesSettings = 0x080C4870  # struct LivesSettings, the initial gLivesSettings (Lives_Reset)
+gCamera = 0x030043B0          # include/variables.h: .wch "Cam Bound L/R/T/B" at +0x1C..+0x22
+gGameState = 0x03004420       # include/variables.h: .wch "World", "Level", flags at +0x20
+gHelirins = 0x03004530        # include/variables.h: 4 x 0xCC-byte players; .wch fields of player 0
+gRandomIndex = 0x03004380  # u8, the next entry of gRandomTable Random_Next returns
+gVsCourseOrder = 0x030044E0  # u8[55], a permutation of 0..54, the Challenge courses (Vs_ShuffleCourses), swapped by Vs_NextCourse
+gVsCourseIndex = 0x03004518  # s32, index into gVsCourseOrder, 0..54 (Vs_NextCourse)
+gRandomIndex2 = 0x03004384  # u8, the second index into gRandomTable (Random_Next2)
+gFrameHundredths = 0x0801CB9C  # u8[60], the hundredths of a second of each frame of a second (Text_FormatTime)
+gDakutenChars = 0x0801CBD8  # u16[128] by code - 0x80: the character code + dakuten (0xDE, JIS X 0201's mark) gives, or code itself (Text_Draw, Text_GetDakutenChar)
+gHandakutenChars = 0x0801CCD8  # u16[128] by code - 0x80: the character code + handakuten (0xDF) gives, or code itself (Text_Draw, Text_GetHandakutenChar)
+gTextNoTime = 0x0801CE0C  # "--'--\"--": drawn instead of a time of 216000 frames (60 minutes, no record; Text_DrawTime)
+gRandomTableInit = 0x0801CE34  # u8[256], ROM copy of gRandomTable (Random_Reset DMAs it over it; Random_Shuffle's swap partners)
+gSineTable = 0x0801CF34  # s16[256]: 256 * sin(2 pi dir / 256) ([0] 0, [64] 256): the x step of byte direction dir (0 up, 0x40 right)
+gCosineTable = 0x0801D134  # s16[256]: 256 * cos(2 pi dir / 256) ([0] 256, [128] -256): the (upward) y step of byte direction dir
+gHelirinHealColorAnim = 0x0801EDDC  # u16 Helirin colour animation started when a zone refills the lives (flags bit 9, Helirin_UpdateCollision), and while in a zone (Helirin_SetColor)
+gHudFaceAnims = 0x080C4B50  # const u16 *[][4], the face animation by [maxLives][lives] (Hud_Init, Hud_Draw)
+gHelirinColorAnims = 0x080C48DC  # const u16 *[7], the colour animation of each colour, indexed by Helirin.color (Helirin_SetColor)
+gCameraX = 0x030031E4  # s32, the map pixel at the screen's left edge: the Helirin's x - 0x78 at a level start (Play_RunLevel), subtracted from every sprite's x (Helirin_Draw)
+gCameraY = 0x030031E8  # s32, the map pixel at the screen's top edge: the Helirin's y - 0x50 at a level start (Play_RunLevel)
+gUnk_083A7C98 = 0x083A7C98    # 0x680 bytes copied to OBJ VRAM 0x060174A0 (MakeUp_Run)
+gMakeUpObjPalettes = 0x080F3B70  # 0x1C0 bytes copied to OBJ palette RAM 0x05000200 (MakeUp_Run)
+gTextIdError = 0x0801EC04  # "ID ERROR!" (Vs_WaitForConsoles, Vs_CheckLevelLink)
+gTextTimeOut = 0x0801EC10  # "TIME OUT!" (Vs_WaitForConsoles, Vs_CheckLevelLink)
+gTextLeftArrow = 0x0801EC24  # "<", drawn left of the cursor (Vs_CourseRowsMenuItem)
+gTextRightArrow = 0x0801EC28  # ">", drawn right of the cursor (Vs_CourseRowsMenuItem)
+gMakeUpSpriteTiles = 0x0801ECC0  # {src, tile, tiles} OBJ VRAM copies, NULL-terminated (MakeUp_Run)
+gMakeUpIconTiles = 0x080C4884  # 22 pointers to 0x80-byte OBJ tiles, copied to 0x06012400..: the Make Up screen's icons (MakeUp_Run)
+gMakeUpIconPalettes = 0x0801ECE7  # u8[10], the OBJ palette of each item's Make Up icon (Bonus_UpdateMakeUpIcon, the Make Up screen)
+gSpringAnim = 0x080C491C  # u16 animation frames of a spring at rest (Object_Spring*)
+gSpringHitAnim = 0x080C4920  # u16 animation frames of a spring that bumps (Object_Spring*)
+gSpringShape = 0x080C4940  # struct CollisionShape[] of a spring (Object_Spring*)
+gHelirinHurtColorAnim = 0x0801EDB8  # u16 Helirin colour animation after losing a life (Helirin_UpdateCollision)
+gHelirinZoneColorAnim = 0x0801EDD0  # u16 Helirin colour animation while in a zone (flags bit 18, Helirin_UpdateCollision)
+gWallMap = 0x03003134  # struct Map, map 1 of gMaps: the level's first layer (KuruTools: 'Walls (layer 1)', Level_Load); .wch "MapW IW"/"MapH IW" at +8/+0xA; the Helirin's points are tested against it
+gMakeUpIconTile = 0x03000010  # u32 tile number of the next Make Up icon, from 0x120 in steps of 4 (MakeUp_MenuItem)
+gTextCursor = 0x03003EE8  # struct TextCursor: where the Text_Print* functions draw: {x, y, dx, dy, palette, list}, left after the text
+gMenuCursorColors = 0x080C6324  # 4 pointers to the colour the menu cursor cycles through, written to OBJ palette 14 colour 15 (Files_NameEntryItem, MakeUp_MenuItem)
+gMakeUpColorPalettes = 0x0801ECE0  # u8[7], the palette of each icon of the colour row (MakeUp_MenuItem, row 4)
+gMakeUpTypeColumns = 0x0801ECF1  # u8[], the column of the type rows 1-3 by cursor (MakeUp_MenuItem)
+gMakeUpColorColumns = 0x0801ECFB  # u8[], the column of the colour row 4 by cursor (MakeUp_MenuItem)
+gLinkPlayer = 0x030008A8  # u8, this console's player number in a linked game, from SIOCNT (ModeMenu_Run; Play_RunLevel, Vs_WaitForConsoles)
+gLinkTimer = 0x030008E8  # s32 frame counter: frames the linked consoles have not all answered (Vs_CheckLevelLink: "TIME OUT!" past 0x3C); Play_RunLevel's states 5 and 6
+gDispcntCopy = 0x030008F0  # u16, the copy of DISPCNT (0x04000000) and the start of the I/O register copies: Main_InstallFrameCallback copies 0x2B halfwords of I/O registers here, the frame callback writes them back
+gBgCntCopies = 0x030008F8  # u16[4], gDispcntCopy + 8: the copies of BG0CNT-BG3CNT
+gMosaicCopy = 0x0300093C  # u16, gDispcntCopy + 0x4C: the copy of MOSAIC
+gBldalphaCopy = 0x03000942  # u16, gDispcntCopy + 0x52: the copy of BLDALPHA
+gBldyCopy = 0x03000944  # u16, gDispcntCopy + 0x54: the copy of BLDY
+gBgLayerBuffers = 0x03001110  # u8[0x2000]: the 0x800-byte map buffers of the four gBgLayers (buffer, Bg_SetVideoMode)
+gWin0hCopy = 0x03000930  # u16, gDispcntCopy + 0x40: the copy of WIN0H
+gWin1hCopy = 0x03000932  # u16, gDispcntCopy + 0x42: the copy of WIN1H
+gWin0vCopy = 0x03000934  # u16, gDispcntCopy + 0x44: the copy of WIN0V
+gWin1vCopy = 0x03000936  # u16, gDispcntCopy + 0x46: the copy of WIN1V
+gWininCopy = 0x03000938  # u16, gDispcntCopy + 0x48: the copy of WININ
+gLinkSendData = 0x03000890  # u16[12] (Link_Send copies 6 words; Vs_RunMenus fills all 12) sent to the other players each frame (Link_Exchange): command, -, x, y, angle | progress, flags (Play_RunLevel)
+gLinkPlayers = 0x03000DB0  # u8, the mask of the players in the linked game (Play_RunLevel, Vs_WaitForConsoles, Effect_UpdateLinkResultBanner)
+gUnk_03000DB4 = 0x03000DB4    # u8 player mask, cleared from gLinkPlayers (Play_RunLevel)
+gWindowRadius = 0x03003110  # s32, the radius of the window circle (Bg_StartWindowCircle, Bg_DrawWindowCircle): the level's opening and closing
+gMaps = 0x03003120  # struct Map[4], one per layer (Bg_InitMap); Level_Load sets 1-3 up from the level's three layers
+gSongSoundModes = 0x0801EF6C  # u32[], by gGameState.song: the m4aSoundMode setting (<< 8) of a level's song (Play_RunLevel)
+gMapReadCursor = 0x03000000  # const u16 *, the map position LevelMap_ReadNumber reads from (LevelMap_Read, LevelMap_StartMarkedObject)
+gPowersOf10 = 0x080C28D0  # u32[11]: 0, 1, 10, ..., 10^9 (Text_DrawNumberAligned indexes it by digit count)
+gDemoKeyOffsets = 0x083B3900  # {u32 offset into gDemoKeys, u32}[level][4 areas]: where each demo's keys start (Helirin_Init, replayed with GAME_FLAG_DEMO)
+gDemoKeys = 0x083B3DC0  # the demos' keys, a byte a frame, 0xFF at the end (Helirin_Update)
+gKeyRecording = 0x02039DAC  # u8[0x2000] EWRAM: the keys Helirin_Update records with gGameState.flags bit 2 (a byte a frame, 0xFF after the last); every Helirin's recordKeys starts here (Helirin_Init)
+gCloudDriftX = 0x0300446C  # s32 16.16 x offset of map 3 in world 6 (Cloud), += 0x4000 a frame (Camera_Update)
+gCloudDriftY = 0x030043EC  # s32 16.16 y offset of map 3 in world 6 (Cloud, gWorldShortNames[6]), += 0x2AAA a frame (Camera_Update): the drifting background
+gBldcntCopy = 0x03000940  # u16, gDispcntCopy + 0x50: the copy of BLDCNT
+gSaveFiles = 0x0300439C  # u8 *, gSaveData: the 5 save files of 0x1F4 bytes (docs/save_format.md)
+gSaveData = 0x0203BDAC  # u8[0x2254] EWRAM: the save data in RAM, one SRAM bank (docs/save_format.md: 5 files, then the records); gSaveFiles and gSaveBank point here (Game_Boot)
+gTransferQueue = 0x03000E10  # 0x40 transfers {src, dst, size, mode} (Main_QueueCopy & co.) that Main_RunTransfersDma/Bios run
+gTransferCount = 0x03000E00  # u16, the transfers queued in gTransferQueue (at most 0x40); 0 after they run
+gDirectionTable = 0x0801D334  # s8[64][64], the direction of (x, y) at [y][x] (Util_GetDirection)
+gInitialGameState = 0x0801E3CC  # struct GameState: the 0x40 bytes Game_Boot copies to gGameState
+gSaveBank = 0x030043A0  # u8 *, gSaveData, the whole bank: + 0x9C4 the Normal records, + 0x1B34 the Easy ones, 0x30 bytes a level (docs/save_format.md)
+gWinoutCopy = 0x0300093A  # u16, gDispcntCopy + 0x4A: the copy of WINOUT
+gAffineParams = 0x030039C0  # u16[32][4], the OBJ affine parameter sets (pa, pb, pc, pd) Sprite_BuildOam stores in OAM
+gAffineCount = 0x03003AD0  # u8, the next free affine set: Sprite_AllocAffine hands out 8-31 (Sprite_ClearLists sets 8)
+gOamBuffer = 0x03003AE0       # 128 OAM entries (8 bytes: attributes 0-2 and an affine parameter); Main_FrameCallback copies all 0x400 bytes to OAM (CpuFastSet to 0x07000000), Sprite_BuildOam fills it
+gSpriteLists = 0x03003AC0  # s8[16], the head of each sprite list (-1: empty), linked through Sprite.next (Sprite_Alloc, Sprite_BuildOam)
+gSprites = 0x030033C0  # struct Sprite[128], the entries Sprite_Alloc hands out
+gSpriteCount = 0x03003EE0  # u8, the sprite entries handed out so far (Sprite_Alloc; 0 in Sprite_ClearLists)
+gResultsSpriteTiles = 0x0801E7F8  # {src, tile, tiles} OBJ VRAM copies, NULL-terminated: the result screen's sprites (Results_Run)
+gResultsOtherHelirinTiles = 0x081E3B88  # 0x800 bytes copied to OBJ VRAM 0x06016A80 by Results_Run for mark 2 (Results_EnterRecord's 8: cleared with another Helirin size, no record), drawn blinking
+gUnk_080C6270 = 0x080C6270    # u16 animation frames of Results_Run's Effect_AnimateCopies task
+gUnk_080C6284 = 0x080C6284    # stored at +8 of Results_Run's Effect_AnimateCopies task
+gUnk_080C3B84 = 0x080C3B84    # u8[4], indexed by Results_EnterRecord's result & 3: Effect_Firework tasks to start (Results_Run)
+gUnk_080C3B20 = 0x080C3B20    # u16 animation frames Results_Run plays with Anim_Step
+gTextBestTime = 0x0801E818  # "BESTTIME": drawn by Results_Run at (0x38, 0x34) (Text_Draw)
+gUnk_0801E824 = 0x0801E824    # string drawn by Results_Run at (0x50, 0x58) (Text_Draw)
+gRankUpScripts = 0x080C3FE4  # const u32 *[], Script_Run mode 5's script by the save file's rank (Results_CheckRankUp)
+gLevelStartScripts = 0x080C3FA0  # const u32 *[], Script_Run mode 0's script by gGameState.level (before a level)
+gLevelEndScripts = 0x080C3FB4  # const u32 *[], Script_Run mode 1's script by gGameState.world (after a level)
+gMissingItemsScript = 0x080C3ED0  # u32 script of Script_Run mode 4: world 10 level 3 cleared without all ten items (once, flags bit 6)
+gAllItemsScript = 0x080C3EF8  # u32 script of Script_Run mode 3: a world's level 3 cleared with all ten items, before the ending
+gAdventureStartScript = 0x080C3C3C  # u32 script of Script_Run mode 2: the first Adventure of a file (Play_MainState, flags bit 0 clear)
+gUnk_080C3EB8 = 0x080C3EB8    # u32 script of Script_Run mode 1 when the bonus is not taken
+gUnk_080C3C78 = 0x080C3C78    # u32 script of Script_Run state 12
+gUnk_08187C94 = 0x08187C94    # compressed (Decompress_LZ) 0x200 bytes; the second half goes to BG palette 0x05000100 (Script_Run modes 0, 1)
+gUnk_0819C254 = 0x0819C254    # compressed 0x1000 bytes copied to OBJ VRAM 0x06012400 (Script_Run state 9)
+gUnk_0819C554 = 0x0819C554    # compressed 0x1000 bytes copied to OBJ VRAM 0x06013400 (Script_Run state 9)
+gUnk_0819C6CC = 0x0819C6CC    # 0x200 bytes copied to OBJ VRAM 0x06014400 (Script_Run state 9)
+gCollectionPalettes = 0x0817AD68  # 0x200 bytes copied to OBJ palette RAM by Collection_Run (modes 0, 3: the items' pictures)
+gCollectionEndingPalettes = 0x0817B368  # 0x200 bytes copied to OBJ palette RAM by Collection_Run (mode 1, the ending)
+gCollectionBgPalettes = 0x08186E8C  # compressed (Decompress_LZ) 0x200 bytes; the second half goes to BG palette 0x05000100 (Collection_Run)
+gUnk_081EF088 = 0x081EF088    # 0x20 bytes copied to OBJ VRAM 0x06017FE0 (Collection_Run, mode 1)
+gTextPalettes = 0x081DC948  # 0x40 bytes: palettes 14-15 of both BG (0x050001C0) and OBJ (0x050003C0), the colours text is drawn in (cursor colour 14/15)
+gLevelEndTimer = 0x03000004  # s32 frames to wait at a level's end before the window closes (Play_CheckLevelEnd: 0x3C, 0x1E, 0x78, counted down)
+gWindowY = 0x030031E0  # s32, the centre y of the window circle (Bg_StartWindowCircle)
+gWindowX = 0x030033B8  # s32, the centre x of the window circle (Bg_StartWindowCircle)
+gMPlayInfo_BGM = 0x030059C0  # m4a struct MusicPlayerInfo of gMPlayTable[0] (9 tracks: the music; pret's m4a name); Play_CheckLevelEnd fades it out
+gMPlayInfo_SE2 = 0x03005A40  # m4a struct MusicPlayerInfo of gMPlayTable[2] (2 tracks; pret's m4a name), stopped by m4aMPlayStop (Play_CheckLevelEnd, Pause_Update)
+gWorldInfo = 0x03004398        # gWorldEntries[world].info (KuruTools WorldInfo), set by Level_Load
+gWorldData = 0x03004394        # gWorldEntries[world].data (KuruTools world data), set by Level_Load
+gWorldTileAnims = 0x03004390  # gWorldEntries[world].tileAnims (KuruTools "dummy1"), set by Level_Load: {frames, copies} pairs, NULL-terminated, one Effect_AnimateBlockCopies task each (Level_StartTasks)
+gBgLayers = 0x03003170  # struct BgLayer[4], one per BG layer (Bg_SetVideoMode); the frame callback copies their offsets and buffers to the hardware
+gLevelSpritePalettes = 0x081DC788  # 0x1C0 bytes copied to OBJ palette RAM 0x05000200 at every level load (Level_Load)
+gLevelSpriteTiles = 0x0801E334  # {src, tile, tiles} OBJ VRAM copies every level loads, NULL-terminated (Level_Load)
+gBackgroundAnim1 = 0x080C5FA4  # u16 animation frames of the first menu background Effect_AnimateCopies task (Intro_StartBackgroundTasks)
+gBackgroundAnim2 = 0x080C5FC0  # u16 animation frames of the second (Intro_StartBackgroundTasks)
+gBackgroundAnim3 = 0x080C5FDC  # u16 animation frames of the third (Intro_StartBackgroundTasks)
+gBackgroundCopies = 0x080C5FF8  # the copies of Intro_StartBackgroundTasks's three Effect_AnimateCopies tasks (+8)
+gPaletteCycleAnim = 0x080C5F8C  # u16 animation frames: which colour set Effect_CyclePalette copies to BG palette 0
+gWorldIconFrames = 0x083AAC18  # struct WorldIconFrame[]: {offset into gIconTiles, ?}, two per world: 0x400 bytes MapScreen_UpdateWorldIcon copies to OBJ VRAM 0x06016A80
+gIconTiles = 0x083AAD00  # the OBJ tiles gWorldIconFrames' offsets point into (MapScreen_UpdateWorldIcon, ModeMenu_DrawCursor)
+gWorldMapPicture = 0x080F7980  # an 8bpp picture 0x87 tiles wide, its palettes 0x2A300 and 0x33D00 bytes on: the world map MapScreen_ShowMap scrolls to the level (gMapLevelPositions)
+gTrainingMapPicture = 0x08121E80  # an 8bpp picture of 30 x 20 tiles, its palette 0x9600 bytes on: the map of the training levels 0-4 (MapScreen_ShowMap)
+gModeMenuCursorFrames = 0x083AACD0  # gWorldIconFrames[23]: six entries, the 0x800-byte frames of the mode menu's cursor (ModeMenu_DrawCursor)
+gModeMenuCursorFrame = 0x03000008  # u16, the mode menu cursor's animation (ModeMenu_DrawCursor: + 0x40 a frame, 0x100 a frame of gModeMenuCursorFrames, modulo 0x600)
+gGoalBannerTiles = 0x081DD188  # 0x1000 bytes of OBJ tiles Effect_UpdateGoalBanner copies to 0x06011400 (two 64x64 sprites)
+gLinkEndBannerTiles = 0x081DE188  # 0x1000 bytes of OBJ tiles Effect_UpdateLinkEndBanner copies to 0x06011400 (two 64x64 sprites)
+gTimeUpBannerTiles = 0x081E1F88  # 0x1000 bytes of OBJ tiles Effect_UpdateTimeUpBanner copies to 0x06011400 (two 64x64 sprites)
+gIntrTableInit = 0x0801CB64  # 14 interrupt handlers AgbMain copies to gIntrTable ([0] Main_VBlankIntr, the rest IntrDummy or 0)
+gIntrMainBuffer = 0x03000950  # 0x400 bytes of IWRAM: AgbMain copies IntrMain there and makes it the BIOS interrupt vector (0x03007FFC)
+gMainStates = 0x080C28B4  # AgbMain's state functions, indexed by gMain.state: Game_Boot, the intro, the file menu, Play_MainState, the ending, two debug states
+gLinkState = 0x03003FF0  # struct LinkState, 0x220 bytes: the link cable state of the serial routines sub_0800019C/sub_080001DC (Link_Init)
+gUnk_03004210 = 0x03004210    # 0x40 bytes of IWRAM: Link_Init copies sub_0800019C (ARM) there
+gUnk_03003EF0 = 0x03003EF0    # 0x100 bytes of IWRAM: Link_Init copies sub_080001DC (ARM) there; ModeMenu_Run makes it interrupt handler 1
+gIntroTiltedHelirinTiles = 0x081C22E8  # 0x4800 bytes of OBJ tiles: the 18 64x32 frames of Intro_UpdateTiltedHelirin (a flattened Helirin at 18 angles, screenshots)
+gIntroTiltedHelirinPath = 0x080C38C4  # u16 animation frames of Intro_UpdateTiltedHelirin (the value: a direction, 0xFF none)
+gScriptBgPalettes = 0x0818BC9C  # the compressed BG palettes Script_Step's scripts name (up to gScriptObjTiles)
+gScriptObjTiles = 0x0818D1C4  # the compressed OBJ tiles Script_Step's scripts name (up to gScriptDataEnd)
+gScriptDataEnd = 0x0819FE40  # the end of Script_Step's OBJ tiles (gScriptBgPalettes + 0x141A4 in the original)
+gIntroObjTiles = 0x081D6388  # 0x2400 bytes of OBJ tiles the intro (Intro_MainState) copies to 0x06010000; also the ending's and Practice's
+gIntroBgAnim = 0x080C382C  # u16 animation frames of Intro_UpdateBgAnim (the value: a picture of gIntroBgAnimPictures)
+gIntroBgAnimPictures = 0x080C3794  # {map, tile list}[]: the BG map 1 pictures of gIntroBgAnim's frames (Bg_LoadMap, Intro_UpdateBgAnim)
+gDefaultNames = 0x080C3C00  # const u8 *[4], each "Kururin": the name the name entry fills in on Start (Files_EnterName)
+gHelirinSizeGfx = 0x08391C28  # gHelirinTypeGfx + 8: {offset into gHelirinGfx, ?}[type][16], a Helirin's OBJ tiles by size (Helirin_SetSize)
+gHelirinSizes = 0x0801EE8C  # struct HelirinSize[15], by Helirin size: 17..3 points, 64..8 pixels long (Helirin_SetSize)
+gIntroHelirinCenterTile = 0x081E5668  # 0x20 bytes of OBJ tiles Intro_UpdateHelirin copies to 0x06016180: the 8x8 sprite at the Helirin's centre (tile 0x30C)
+gIntroHelirinTiles = 0x081C6AE8  # OBJ tiles of Intro_UpdateMovingHelirin (eight rows of 0x40 bytes, then 0x20 at +0x200)
+gIntroHelirinPath = 0x080C38E8  # u16 animation frames of Intro_UpdateMovingHelirin (the value: a direction, 0xFF none)
+gCollectionTiles = 0x080C4460  # u16 {first OBJ tile, tiles a frame} by picture of the collection pictures (Collection_UpdatePicture)
+gCollectionPositions = 0x080C4448  # u8 {x, y} by picture of the collection pictures (Collection_UpdatePicture)
+gCollectionAnims = 0x080C43D8  # the animations (Anim_StepLong frames) of the collection pictures by picture (Collection_UpdatePicture)
+gSaveSignature = 0x080C2C50  # "KURURIN 1.01": the save's 16-byte signature at SRAM 0x0E000000 (Save_LoadAtBoot compares it with strcmp, writes it at a format)
+gTextDeleteSave1 = 0x0801E40C  # "Do you want to delete": Save_LoadAtBoot's erase question (A+B+Select+Start at boot), line 1
+gTextDeleteSave2 = 0x0801E424  # "all the saved data?": the erase question, line 2 (Save_LoadAtBoot)
+gTextYes = 0x0801E43C  # "Yes": the erase question's first answer (erases, Save_LoadAtBoot)
+gTextNo = 0x0801E444  # "No": the erase question's second answer (Save_LoadAtBoot)
+gTextSaveDamaged1 = 0x0801E448  # "This saved data": the bad save message, line 1 (Save_LoadAtBoot, neither bank's checksum good)
+gTextSaveDamaged2 = 0x0801E45C  # "is damaged.": the bad save message, line 2 (Save_LoadAtBoot)
+gTextSaveDamaged3 = 0x0801E46C  # "It will be deleted.": the bad save message, line 3 (Save_LoadAtBoot)
+gNameEntryRows = 0x080C3BD0  # const u8 *[3][6]: the name entry's character rows per kind: upper case, lower case, kana (Files_NameEntryItem)
+gNameEntryColumnKinds = 0x0801E944  # u8 by column: the kind under the name entry's cursor on the kind row (Files_NameEntryItem)
+gNameEntryKindColumns = 0x0801E94F  # u8 by kind: the column the name entry puts the cursor on (Files_NameEntryItem)
+gUnk_080C2F38 = 0x080C2F38    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C2FCC = 0x080C2FCC    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3020 = 0x080C3020    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C306C = 0x080C306C    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C30D0 = 0x080C30D0    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C314C = 0x080C314C    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C31D0 = 0x080C31D0    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C323C = 0x080C323C    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C32B0 = 0x080C32B0    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C32FC = 0x080C32FC    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C335C = 0x080C335C    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3424 = 0x080C3424    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3574 = 0x080C3574    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3704 = 0x080C3704    # the frames of a Intro_UpdateSprite intro sprite
+gUnk_080C2F10 = 0x080C2F10    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C2F2C = 0x080C2F2C    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C2FB8 = 0x080C2FB8    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C300C = 0x080C300C    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3050 = 0x080C3050    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C30BC = 0x080C30BC    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3120 = 0x080C3120    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C31AC = 0x080C31AC    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3220 = 0x080C3220    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C329C = 0x080C329C    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C32E0 = 0x080C32E0    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C333C = 0x080C333C    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C338C = 0x080C338C    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gEndingSprite10Anim = 0x080C3348  # u16 animation frames sprite 10 of the ending switches to at frame 0x1680 (Ending_UpdateSprite)
+gEndingText = 0x080C3910  # struct EndingTextLine[]: the ending's text pages (Ending_UpdateText)
+gUnk_080C33B0 = 0x080C33B0    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3404 = 0x080C3404    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3418 = 0x080C3418    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3504 = 0x080C3504    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_080C3550 = 0x080C3550    # u16 animation frames of a Intro_UpdateSprite intro sprite
+gUnk_03004860 = 0x03004860    # u8[4]; bit 0 of [3] goes into every link packet (Link_Send)
+gModeMenuDescriptionItem = 0x0300000C  # s32, the mode menu item whose description ModeMenu_DrawDescription copied last (negative: none)
+gModeMenuDescriptionTiles = 0x080C3C20  # const void *[]: the 0x780-byte OBJ tiles of each mode menu item's description (ModeMenu_DrawDescription)
+gModeMenuCursorPositions = 0x080C3C10  # {u8 x, y}[]: where the mode menu's cursor is for each item, from 1 (ModeMenu_DrawCursor)
+gHitSparkAnim = 0x080C5F08  # u16 animation frames of the spark at a colliding point (Effect_UpdateHitSpark)
+gZoneHitRippleAnim = 0x080C5F1C  # u16 animation frames of the hit effect of a Helirin with flags 0x40008: blue rings (Effect_UpdateZoneHitRipple)
+gSpringSparkAnim = 0x080C5F30  # u16 animation frames of a spring's spark (Effect_UpdateSpringSpark; Object_SpringDown starts it)
+gCrashAnim = 0x080C5ED4  # u16 animation frames of the crash (Effect_UpdateCrash; Helirin_Update starts it)
+gCrashTiles = 0x080C5EF0  # const void *[6]: 0x800 bytes of OBJ tiles per frame of gCrashAnim, copied to 0x06015980 (Effect_UpdateCrash)
+gItemAnims = 0x0801EFCC  # LongAnimFrame[10][5]: each item's animation (0x80 bytes of OBJ tiles per frame; Bonus_UpdateItem, Bonus_UpdateMakeUpIcon)
+gGoalAnim = 0x080C5F44  # u16 animation frames of the goal's palette (Effect_UpdateGoal, state 1)
+gGoalReachedAnim = 0x080C5F58  # u16 animation frames of the goal's palette once the Helirin's flags have bit 3 (Effect_UpdateGoal)
+gGoalPalettes = 0x080C5F6C  # const u8 *[8]: the palettes Effect_UpdateGoal copies by frame (0x20 bytes to 0x05000160, 0x20 from +0x100 to 0x05000180)
+gHelirinPieceTiles = 0x080C48FC  # 8 pointers to the OBJ tile of each piece (Helirin_UpdatePiece); const u8 *[8]: an 8x8 tile (0x20 bytes) per piece of Helirin_Update's Helirin_UpdatePiece tasks (piece & 7)
+gTrainingMapPositions = 0x0801EA94  # {u16 x, y} per training level (world 0): where the map screen's cursor and path are
+gMapLevelPositions = 0x0801EAAC  # {u16 x, y} per level number world * 3 + level + 2 (worlds 1+): where the map screen's cursor and path are, the world map's scroll (MapScreen_ShowMap)
+gPauseMenu = 0x030043F0  # struct PauseMenu: the menu Pause_Update runs (Menu_RunWrap), then at +0x1C its OBJ VRAM copy list
+gSeeMapArrowTiles = 0x081E5268  # 0x200 bytes copied to OBJ VRAM 0x060171A0: the four arrows Pause_SeeMap draws at the screen's edges
+gMakeUpLRTiles = 0x081E5468  # 0x100 bytes copied to OBJ VRAM 0x060171A0 while bit 4 or 5 of the frame counter is set: Pause_MakeUp's two sprites (L, R)
+gMakeUpLRTilesBlink = 0x081E5568  # 0x100 bytes copied there otherwise (Pause_MakeUp)
+gDemoLabelTiles = 0x081E4FC8  # 0x180 bytes copied to OBJ VRAM 0x06011400: the sprites Effect_DrawDemoLabel draws during a demo
+gCountdownTiles = 0x081DF188  # OBJ tiles the linked game's countdown loads with song 0x3F (Effect_UpdateLinkCountdown)
+gCountdownGoTiles = 0x081E0188  # OBJ tiles the countdown loads 30 frames before the start, with songs 0x40 and 0x2F (Effect_UpdateLinkCountdown)
+gSmallFontWidths = 0x0801CDD8  # u8[26], the width in pixels of 'a'-'z' in the 8x8 font (Text_DrawSmallName)
+gSmallRankMarks = 0x080C28FC  # u16[][4], 0-terminated tiles Text_DrawSmallName draws after a name, by its rank
+gFontWidths = 0x0801CDF2  # u8[26], the width in pixels of 'a'-'z' in the 8x16 font (Text_DrawName, Text_PrintProportional)
+gRankMarks = 0x080C291C  # u16[][4], 0-terminated characters Text_DrawName draws after a name, by its rank (= gSmallRankMarks[4])
+gHudLifePositions = 0x080C4A04  # {s16 x, y}[]: where life icon n is drawn (index n - 1, Hud_UpdateLifeIcon)
+gHudLifeScaleAnim = 0x080C4A14  # u16 animation frames: the scale of a life icon growing in (Hud_UpdateLifeIcon)
+gHudLifeTiles = 0x081E5748  # 0x80 bytes of OBJ tiles of the life icon (Hud_UpdateLifeIcon)
+gHudHurtFrames = 0x080C4AA0  # u16 animation frames of gHudHurtAnim (Hud_Draw)
+gHudGoalFaceAnim = 0x080C4B38  # u16 animation frames of the face at the goal (Helirin flags bit 2, Hud_Draw)
+gHudFaceTiles = 0x080C4A50  # const void *[]: 0x200 bytes of OBJ tiles per face frame (Hud_Draw)
+gDefaultRecordNames = 0x0801E48A  # char[3][10] names ("Hare"): [0] and [1] name the second and first record of each level (Save_ResetRecords reaches [0] as [1] - 10)
+gEasyLevelTimes = 0x080C2B6A  # u16[38][3] = gLevelTimes[93] (KuruTools: the Easy Mode times), loaded by Save_ResetRecords as a symbol of its own
+gTypeBonusTiles = 0x080C62D0  # const void *[]: 0x80 bytes of OBJ tiles per Helirin type (Bonus_UpdateType)
+gTypeBonusGfx = 0x083A8B98  # 0x20 bytes copied to OBJ palette 0x05000300, and from + 0x1A80 0x200 bytes to OBJ VRAM 0x060169A0: the type bonus (Bonus_UpdateType)
+gBonusShape = 0x080C630C  # struct CollisionShape of the colour and type bonuses, tested against the Helirin (Bonus_UpdateType)
+gColorBonusPalettes = 0x080C62B4  # const void *[]: the 0x20-byte OBJ palette of each colour bonus (Bonus_UpdateColor)
+gColorBonusTilesA = 0x083A8798  # 0x80 bytes of OBJ tiles of a colour bonus: Bonus_UpdateColor copies them for an odd colour, Bonus_DrawColorIcon for an even one. Drawn (offline, each colour's gColorBonusPalettes) both A and B are the same 16x16 paint-tube icon in different palette slots; the Grasslands 1 bonus (colour 1) shows A in kurutest --shot of the original (tasvideos_6116M_100 frame 895)
+gColorBonusTilesB = 0x083A8998  # 0x80 bytes of OBJ tiles of a colour bonus: the other parity (Bonus_UpdateColor, Bonus_DrawColorIcon)
+gMenuCursorTiles = 0x083AA618  # 0x200 bytes of OBJ tiles: the 32x32 menu cursor (the name entry's tile 0x354 at 0x06016A80, Files_EnterName; the bonus tasks load it at 0x060169A0)
+gUnk_080C6088 = 0x080C6088    # u16 animation frames of a Effect_AnimateCopies task (every level, 1st; Level_StartTasks)
+gUnk_080C60AC = 0x080C60AC    # the copies of that task (+8; Level_StartTasks)
+gUnk_080C6100 = 0x080C6100    # u16 animation frames of a Effect_AnimateCopies task (every level, 2nd; Level_StartTasks)
+gUnk_080C6120 = 0x080C6120    # the copies of that task (+8; Level_StartTasks)
+gUnk_080C6150 = 0x080C6150    # u16 animation frames of a Effect_AnimateCopies task (world 2; Level_StartTasks)
+gUnk_080C6164 = 0x080C6164    # the copies of that task (+8; Level_StartTasks)
+gUnk_080C6194 = 0x080C6194    # u16 animation frames of a Effect_AnimateCopies task (world 5; Level_StartTasks)
+gUnk_080C61BC = 0x080C61BC    # the copies of that task (+8; Level_StartTasks)
+gUnk_080C6204 = 0x080C6204    # u16 animation frames of a Effect_AnimateCopies task (world 7; Level_StartTasks)
+gUnk_080C6228 = 0x080C6228    # the copies of that task (+8; Level_StartTasks)
+gFileMenuFiles = 0x080C3BB8  # u8[5] {1, 2, 3, 4, 0}: the save file of file menu items 0x101-0x105 (Files_FileMenuItem)
+gTextNoSavedData = 0x0801E89C  # "No Saved Data": the file menu's text for an empty file (Files_FileMenuItem, Files_DeleteMenuItem)
+gTextEasy = 0x0801E8AC  # "Easy": drawn for a file in Easy mode (flags bit 4, docs/save_format.md; Files_FileMenuItem)
+gTextNormal = 0x0801E8B4  # "Normal": drawn for a file in Normal mode (flags bit 4 clear; Files_FileMenuItem)
+gTextEnd = 0x0801E8BC  # "End": drawn instead of the world and level once the file is past world 10 (11 with flags bit 1, the last world open; Files_FileMenuItem)
+gTextDeleteSavedData = 0x0801E8C0  # glyphs 0xBB-0xC6 (a label drawn as consecutive tiles): file menu item 6, which opens Files_DeleteScreen (save_files input: "Delete saved data")
+gTextDeleteMenuTitle = 0x0801E954  # glyphs 0xC7-0xDE (a label): item 0x1FF of the delete screen's file menu (Files_DeleteMenuItem)
+gTextDeleteConfirm1 = 0x0801E970  # first line of the delete confirmation (Files_DeleteConfirmItem, item 0x100)
+gTextDeleteConfirm2 = 0x0801E990  # second line of the delete confirmation (Files_DeleteConfirmItem, item 0x100)
+gTextDeleteYes = 0x0801E9AC  # "Yes": the delete confirmation's item 1, which clears the file (Files_DeleteConfirmItem)
+gTextDeleteNo = 0x0801E9B0  # "No": the delete confirmation's item 2 (Files_DeleteConfirmItem)
+gWorldShortNames = 0x080C3B88  # const u8 *[12]: "Training", "Grass", "Ocean", ... "Last": the world a file has reached (Files_FileMenuItem)
+gHelirinTypeGfx = 0x08391C20  # 0x80-byte entries by Helirin type: offsets into gHelirinGfx (Helirin_Draw: its palettes); 0x80-byte entries by Helirin unk4, the first word an offset into gHelirinGfx (Helirin_Draw)
+gHelirinGfx = 0x08392398  # the Helirins' OBJ tiles and palettes (Helirin_SetSize, Helirin_Draw); Helirin OBJ palettes, 0x20 bytes each, at gHelirinTypeGfx offsets + 0x20 * unk36 (Helirin_Draw)
+gVsHelirinPalettes = 0x08133548  # u8[4][0x20], the Helirin palette of each player in the linked game (Helirin_Draw); 0x20-byte OBJ palettes by Helirin unk0, in VS mode (Helirin_Draw)
+gMenuObjTiles = 0x0838D420  # 0x4680 bytes of OBJ tiles from tile 0x120 (VRAM 0x06012400), loaded by the menu screens (Files_MainState, Save_LoadAtBoot, the mode menu, Practice)
+gMenuObjPalettes = 0x08130908  # 0x1C0 bytes, OBJ palettes 0-13 of the menu screens (Files_MainState, the mode menu, Challenge, Practice)
+gChallengeSpriteTiles = 0x0801EB4C  # {src, tile, tiles} OBJ VRAM copies, NULL-terminated: the Challenge course menu's (Challenge_Run)
+gTextChallengeTop3 = 0x0801EB74  # "  TOP3": drawn above the course's three records (Challenge_MenuItem; a copy of gTextTop3)
+gPauseMenuTiles = 0x0801E768  # {src, tile, tiles} OBJ VRAM copies, NULL-terminated: the pause menu of modes 1-3 (Pause_Update)
+gPracticePauseMenuTiles = 0x0801E790  # {src, tile, tiles} OBJ VRAM copies: the pause menu of mode 5, Practice (Pause_Update)
+gDemoPauseMenuTiles = 0x0801E7A8  # {src, tile, tiles} OBJ VRAM copies: the pause menu of a Practice demo (mode 5 with GAME_FLAG_DEMO, Pause_Update)
+gLinkPauseMenuTiles = 0x0801E7D8  # {src, tile, tiles} OBJ VRAM copies: the pause menu of mode 4, the linked game (Pause_Update)
+gTextPause = 0x0801E7F0  # "PAUSE": blinks while mode 6 is paused (Pause_Update, Text_DrawSmall)
+gMapScreenSpriteTiles = 0x0801E9B4  # {src, tile, tiles} OBJ VRAM copies, NULL-terminated: the Adventure map screen's (MapScreen_Run, Practice)
+# The background data of Bg_LoadScreen's screens (by its argument)
+gUnk_080EAC64 = 0x080EAC64    # 0x4000 bytes of BG tiles of screens 0-2's 16x16 map (Bg_LoadScreen)
+gUnk_080F7280 = 0x080F7280    # 16x16 byte map of screens 3 and 17 (Bg_LoadScreen), followed by its tiles
+gUnk_080F7380 = 0x080F7380    # 0x400 bytes of BG tiles of gUnk_080F7280's map (Bg_LoadScreen)
+gUnk_080F697A = 0x080F697A    # 0x12 bytes of BG palette (from colour 1) of screen 3 (Bg_LoadScreen)
+gUnk_080F69DA = 0x080F69DA    # 0x12 bytes of BG palette (from colour 1) of screen 17 (Bg_LoadScreen)
+gUnk_080EA764 = 0x080EA764    # map 1 of screen 0, 32x20 (Bg_LoadScreen)
+gUnk_080E3B60 = 0x080E3B60    # 0x8000 bytes of BG tiles of screen 0's map 1 (Bg_LoadScreen)
+gUnk_080EA360 = 0x080EA360    # 0x200 bytes of BG palette of screen 0 (Bg_LoadScreen)
+gUnk_080F6B7C = 0x080F6B7C    # map 0 of screens 0, 1, 9, 11, 13, 14, 18, 32x20 (Bg_LoadScreen)
+gUnk_080F707C = 0x080F707C    # 0x200 bytes of BG tiles copied 0x600 into map 0's layer (Bg_LoadScreen)
+gUnk_080EEC68 = 0x080EEC68    # map 1 of screen 1, 32x20 (Bg_LoadScreen)
+gUnk_080EA560 = 0x080EA560    # 0x1C0 bytes of BG palette of screens 1, 2, 7 (Bg_LoadScreen)
+gUnk_080EF168 = 0x080EF168    # 0x8000 bytes of BG tiles of screens 1, 2, 7's map 1 (Bg_LoadScreen)
+gUnk_080F3D74 = 0x080F3D74    # map 1 of screens 2 and 7, 32x20 (Bg_LoadScreen)
+gUnk_080F661A = 0x080F661A    # 0x1E bytes of BG palette copied to colours 1 and 0x31 by screens 2 and 7 (Bg_LoadScreen)
+gUnk_080F4278 = 0x080F4278    # map 1 of screen 10, 32x20 (Bg_LoadScreen)
+gUnk_080F4778 = 0x080F4778    # 0x8000 bytes of BG tiles of screen 10's map 1 (Bg_LoadScreen)
+gUnk_080F6378 = 0x080F6378    # 0x1C0 bytes of BG palette of screen 10 (Bg_LoadScreen)
+gUnk_0812C488 = 0x0812C488    # map 1 of screen 3, 32x32 (Bg_LoadScreen)
+gUnk_0812CC88 = 0x0812CC88    # 0x800 bytes of BG tiles of screen 3's map 1 (Bg_LoadScreen)
+gUnk_08133968 = 0x08133968    # 0x1A0 bytes of BG palette (from colour 0x10) of screen 3 (Bg_LoadScreen)
+gUnk_08136050 = 0x08136050    # map 1 of screen 4, 32x20 (Bg_LoadScreen)
+gUnk_08133B48 = 0x08133B48    # 0x2000 bytes of BG tiles of screens 4, 5, 15, 16's map 1 (Bg_LoadScreen)
+gUnk_08133948 = 0x08133948    # 0x1C0 bytes of BG palette of screens 4, 5, 15, 16 (Bg_LoadScreen)
+gUnk_08136554 = 0x08136554    # map 1 of screen 15, 32x20 (Bg_LoadScreen)
+gUnk_08136A58 = 0x08136A58    # map 1 of screen 5, 32x20 (Bg_LoadScreen)
+gUnk_08136F5C = 0x08136F5C    # map 1 of screen 16, 32x20 (Bg_LoadScreen)
+gUnk_080F316C = 0x080F316C    # map 1 of screen 6, 32x20 (Bg_LoadScreen)
+gUnk_080F3670 = 0x080F3670    # map 1 of screen 12, 32x20 (Bg_LoadScreen)
+gUnk_0818698C = 0x0818698C    # map 1 of screen 18, 32x20 (Bg_LoadScreen)
+gUnk_08186448 = 0x08186448    # compressed (Decompress_LZ) 0x504 bytes: map 2 of screen 18 after a 4-byte header (Bg_LoadScreen)
+gUnk_081866A4 = 0x081866A4    # compressed 0x504 bytes: map 3 of screens 11 and 18 after a 4-byte header (Bg_LoadScreen)
+gUnk_08182448 = 0x08182448    # 0x4000 bytes of BG tiles of screens 11 and 18's map 3 (Bg_LoadScreen)
+gUnk_0818683C = 0x0818683C    # compressed 0x504 bytes: map 2 of screen 11 after a 4-byte header (Bg_LoadScreen)
+gUnk_0812BC84 = 0x0812BC84    # 0x800 bytes DMA'd into map 1's layer by screen 13 (Bg_LoadScreen)
+gUnk_08187B88 = 0x08187B88    # compressed 0x504 bytes: map 2 of screen 14 after a 4-byte header (Bg_LoadScreen)
+gUnk_08186F88 = 0x08186F88    # 0x1C00 bytes of BG tiles of screen 14's map 2 (Bg_LoadScreen)
+# The intro's data (Intro_Update)
+gIntroObjPalette = 0x0817AF68  # 0x200 bytes of OBJ palette of the intro (Intro_Update)
+gIntroBgTiles = 0x081B1C40  # compressed (Decompress_LZ) 0x8000 bytes of BG tiles of the intro (Intro_Update)
+gIntroLayer3Map = 0x081B6D34  # 0x800 bytes: the intro's layer 3 map (Intro_Update, DMA)
+gIntroLayer2Map = 0x081B7538  # 0x800 bytes: the intro's layer 2 map (Intro_Update, DMA)
+gIntroLayer1Map = 0x081B7D3C  # 0x800 bytes: the intro's layer 1 map (Intro_Update, DMA)
+gIntroBgPalette = 0x081B6730  # 0x200 bytes of BG palette of the intro (Intro_Update)
+gEndingBgPalette = 0x081B6B30  # 0x200 bytes of BG palette of the ending (Ending_UpdateBackground)
+gEndingObjPalette = 0x0817B168  # 0x200 bytes of OBJ palette of the ending (Ending_UpdateBackground)
+gUnk_081BA54C = 0x081BA54C    # compressed 30x12 tile map, the intro's map 0 at frame 0x386 (Intro_Update, Bg_LoadMap)
+gUnk_0813A3DC = 0x0813A3DC    # BG tiles (0x20 bytes each) the intro's Bg_LoadMap maps pick from (Intro_Update)
+gUnk_081BA64C = 0x081BA64C    # u16 tile list of gUnk_081BA54C's map (Intro_Update, Bg_LoadMap)
+gUnk_081BA724 = 0x081BA724    # compressed 30x12 tile map, the intro's map 1 at frame 0x386 (Intro_Update)
+gUnk_081BA970 = 0x081BA970    # u16 tile list of gUnk_081BA724's map (Intro_Update)
+gUnk_081BA14C = 0x081BA14C    # 0x200 bytes of BG palette of the intro from frame 0x386 (Intro_Update)
+gUnk_081BA34C = 0x081BA34C    # 7 x 0x20 bytes of BG palette 4, cycled every 16 frames (Intro_Update)
+gTitleObjPalette = 0x081BCFE8  # 0x200 bytes of OBJ palette of the intro from frame 0x3FC and of the title (Intro_Update)
+gUnk_081B8540 = 0x081B8540    # 64x16 map 0 of the intro at frame 0x67A (Intro_Update)
+gUnk_081B8D44 = 0x081B8D44    # 0x400 bytes DMA'd into layer 3 at frame 0x6BE (Intro_Update)
+gUnk_081B994C = 0x081B994C    # 64x16 map 0 of the intro at frame 0x7A6 (Intro_Update)
+gUnk_081BC4B8 = 0x081BC4B8    # compressed 30x24 tile map, the intro's map 1 at frame 0x7EA (Intro_Update)
+gUnk_081BCA60 = 0x081BCA60    # u16 tile list of gUnk_081BC4B8's map (Intro_Update)
+gUnk_081B6930 = 0x081B6930    # 0xA0 bytes of BG palette of the intro at frame 0x7EA (Intro_Update)
+gKeyDirections = 0x0801ED48  # s16[16], the direction of each D-pad combination (KEYINPUT bits 4-7; -1: none; 0x40: Right); s16[16]: a byte direction (<< 8) per direction key bits 4-7, negative for none (Helirin_Update: Helirin unk3E)
+gTextPlayback = 0x0801EF40  # "PLAYBACK", drawn when the demo keys end (Helirin_Update); text Helirin_Update draws when a replay (Helirin unkC4) ends
+gTextDataEmpty = 0x0801EF4C  # "DATA EMPTY" (Helirin_Update); second line of it
+gTextRecArea = 0x0801EF58  # "REC AREA", drawn when the key recording is full (Helirin_Update); text Helirin_Update draws when the recording (Helirin unkC8) is full
+gTextEmpty = 0x0801EF64  # "EMPTY" (Helirin_Update); second line of it
+gIntrTable = 0x030008B0  # the interrupt handler table IntrMain dispatches through (AgbMain fills it from gIntrTableInit); ModeMenu_Run sets [1] to the IWRAM routines at 0x03003EF0/1
+gLinkWaitFrames = 0x030008AC  # u16, frames without a link partner (ModeMenu_Run: over 60 switches between waiting and MultiBoot; Vs_WaitForConsoles)
+gMultiBootParam = 0x03004480  # struct MultiBootParam passed to the SDK's MultiBootInit/Main/StartMaster/CheckComplete (ModeMenu_Run, the debug MultiBoot test)
+gMultiBootImageSize = 0x030044D8  # s32, the size of the MultiBoot image (ModeMenu_Run)
+gMultiBootImage = 0x030044DC  # const u8 *, the MultiBoot image gMultiBootProgram (ModeMenu_Run)
+gDebugMultiBootResult = 0x03004470  # s32, the last result of MultiBootMain in main state 6 (Debug_MultiBootTest)
+gDebugProbeCounts = 0x030044D0  # u8[8], the last 8 different MultiBoot probe_count values, newest first (Debug_MultiBootTest)
+gTextStage = 0x0801F240  # "STAGE " (Debug_StageSelectItem, item 0x103)
+gTextArea = 0x0801F248  # "AREA " (Debug_StageSelectItem, item 0x104)
+gTextNotConnected = 0x0801F250  # "NOT CONNECTED": a client whose response_bit is clear (Debug_MultiBootTestItem)
+gTextChecking = 0x0801F260  # "CHECKING...": a client that answered, its client_bit clear (Debug_MultiBootTestItem)
+gTextReady = 0x0801F270  # "READY": a client ready (Debug_MultiBootTestItem)
+gTextPushStart = 0x0801F280  # "PUSH START": probe_count 0 (Debug_MultiBootTestItem)
+gTextNowSending = 0x0801F294  # "NOW SENDING...": probe_count 0xD1 (Debug_MultiBootTestItem)
+gTextBootChecking = 0x0801F2A8  # "BOOT CHECKING...": probe_count above 0xDF (Debug_MultiBootTestItem)
+gDebugModeNames = 0x080C63B4  # const u8 *[4]: "GAME START", "MAP TEST", "RECORDING", "PLAYBACK" (Debug_StageSelectItem)
+gDebugWorldNames = 0x080C63C4  # const u8 *[14]: "WORLD Z", "WORLD A".."WORLD K", "MINI", "TEST" (Debug_StageSelectItem)
+gDebugMultiBootImage = 0x080C63FC  # the image Debug_MultiBootTest sends, up to gMultiBootProgram
+gMultiBootProgram = 0x080E2668  # the MultiBoot image sent to link partners, up to gUnk_080E3B60 (ModeMenu_Run): the linked game's client program
+gMultiBootLabelTiles = 0x08139DDC  # 0x500 bytes copied to OBJ VRAM 0x06017A00 when the MultiBoot send starts: ModeMenu_DrawMultiBootLabel's sprites
+gUnk_0801E82C = 0x0801E82C    # const u8 *[]: the data sent to MultiBoot partners, by the partners' answer (ModeMenu_Run, sub_0801A250)
+gWindowLines = 0x030031F0  # u16[]: WIN0H, then one value per line that DMA 0 copies to WIN0H at each HBlank (Bg_WindowLineIntr)
+gBgOfsCopies = 0x03000900  # u32[4], gDispcntCopy + 0x10: the copies of BG0HOFS/VOFS-BG3HOFS/VOFS, from the layers' positions (Main_FrameCallback)
+gBg2AffineCopy = 0x03000910  # gDispcntCopy + 0x20: the copies of BG2PA-PD, BG2X, BG2Y (Effect_RotateBg2 writes a rotation there)
+gLevelIntroWorldNameTiles = 0x080C4734  # const u8 *[] by world: 0x400 bytes of compressed OBJ tiles (LevelIntro_Run, to 0x06012400): the world's name ("Grasslands" in kurutest --shot of the original, tasvideos_6116M_100 frame 600)
+gLevelIntroLevelNumberTiles = 0x080C4764  # const u8 *[] by level: 0x200 bytes of compressed OBJ tiles (LevelIntro_Run, to 0x06012800): the level's number ("1", same screenshot)
+gLevelIntroPictureTiles = 0x080C4778  # const u8 *[] by world: 0xC80 bytes of compressed OBJ tiles (LevelIntro_Run, to 0x06012A00: tile 0x150, the 5x5 sprite picture)
+gLevelIntroAnimTiles = 0x080C4810  # const u8 *[] by frame value of gLevelIntroAnim/gLevelIntroEndAnim: 0x200 bytes of compressed OBJ tiles (LevelIntro_Run)
+gLevelIntroAnim = 0x080C47A4  # u16 animation frames of LevelIntro_Run's picture
+gLevelIntroEndAnim = 0x080C47F0  # u16 animation frames LevelIntro_Run switches to on the last A/B
+gLevelIntroWorld5Picture1 = 0x08181940  # 0xC80 bytes of compressed OBJ tiles LevelIntro_Run swaps in for gLevelIntroPictureTiles[5] (the first A/B in world 5)
+gLevelIntroWorld5Picture2 = 0x08181E60  # 0xC80 bytes of compressed OBJ tiles LevelIntro_Run swaps in (the second A/B in world 5)
+gLevelStartAnim = 0x080C45D0  # u16 animation frames: LevelIntro_PlayStartAnim's pictures (gLevelStartPictures) on BG 2
+gLevelStartPictures = 0x080C4490  # {map, tile list}[]: the pictures of gLevelStartAnim's frames (Bg_LoadMap8bpp, LevelIntro_PlayStartAnim)
+gWornItemPalettes = 0x0801F15C  # u8[10]: the OBJ palette of each item worn (Bonus_UpdateWornItem)
+gWornItemFollowAnim = 0x0801F168  # u16 animation frames of a worn item while it follows the Helirin (Bonus_UpdateWornItem)
+gWornItemFlyAnim = 0x0801F16C  # u16 animation frames of a worn item while it flies (Bonus_UpdateWornItem)
+gTextArea1 = 0x0801F180  # "Area1": item 0x101 of Practice's area menu (Practice_AreaMenuItem, Text_PrintSmallProportional)
+gTextArea2 = 0x0801F188  # "Area2": item 0x102 (Practice_AreaMenuItem)
+gTextArea3 = 0x0801F190  # "Area3": item 0x103 (Practice_AreaMenuItem)
+gTextArea4 = 0x0801F198  # "Area4": item 0x104 (Practice_AreaMenuItem)
+gWornItemTiles = 0x080C635C  # const void *[4][4]: 0x20 bytes of OBJ tiles by (item & 3, frame) (Bonus_UpdateWornItem)
+gWornItemShape = 0x080C639C  # struct CollisionShape of a worn item's sprite, tested against the Helirin when it flies back (Bonus_UpdateWornItem)
+gTextTop3 = 0x0801EB44  # "  TOP3": drawn above the level's three records (MapScreen_LevelMenuItem)
+gPistonShape = 0x080C4984  # struct CollisionShape[] of a piston (Object_Piston)
+gRollerProjectileShape = 0x080C496C  # struct CollisionShape[] of a roller's projectile (Object_RollerProjectile)
+gRollerProjectileAnim = 0x080C4958  # u16 animation frames of a roller's projectile
+gShooterAnim = 0x080C499C  # u16 animation frames a shooter starts with (Object_Shooter)
+gShooterFireAnim = 0x080C49A0  # u16 animation frames of a shooter firing (a shot on its frame 0x29C)
+gShooterShotAnim = 0x080C49E0  # u16 animation frames of a shooter's shot (Object_ShooterShot)
+gShooterShotShape = 0x080C49EC  # struct CollisionShape[] of a shooter's shot (Object_ShooterShot)
+gItemPalettes = 0x080C6334  # const void *[10]: the 0x20-byte OBJ palette of each item (Bonus_UpdateItem)
+gTextGuest = 0x0801E484  # "GUEST": the name Save_ResetFile gives file 0
+gTextNoRecordName = 0x0801E4A8  # 9 bytes ("--------"), copied as the name of every reset record (Save_ResetRecords)
+gMapCursorAnim = 0x080C470C  # LongAnimFrame[]: the map screen cursor's animation (0x400 bytes of OBJ tiles per frame, MapScreen_UpdateCursor)
+# ROM tables documented by KuruTools (tools/research/KuruTools/KuruRomExtractor/
+# KuruRomExtractor/Levels.cs), each loaded by the code from its literal pool:
+gLevelAreaCounts = 0x0801E740 # NUMBER_AREAS_TABLE_OFFSET: u8[38]; Pause_DemoMenuItem
+gLevelTimes = 0x080C293C      # TIMES_TABLE_OFFSET: u16[93 + 38][3]; Save_ResetRecords
+gWorldEntries = 0x080C2E68    # WorldEntry.BASE_ADDRESS: 13 x {world info, world data, unk} (12 bytes); Level_Load
+gPhysicalTiles = 0x081D8788   # PHYSICAL_TILES_ADDR (0x1DA788 - 0x2000), 0x2000 bytes; Level_Load
+gPhysicalTilesChallenge = 0x081DA788  # PHYSICAL_TILES_CHALLENGE_ADDR, 0x2000 bytes; Level_Load
+
+# Sizes of RAM [symbols] objects. A literal-pool word inside one (not at its start) is
+# generated as `symbol+offset`, which is what C that indexes the object compiles to.
+[symbol_sizes]
+gMaps = 0x50          # struct Map[4], 0x14 bytes each (variables.h); Bg_LoadPicture passes &[2]
+gBgLayers = 0x70          # 4 x 0x1C-byte layers (Level_Load steps 0x1C); Bg_LoadPicture passes &[2]
+gMPlayJumpTable = 0x90         # MPlayFunc[36] (ClearChain/Clear64byte call [34]/[35])
+MultiBoot_required_data = 0x6    # u16[3] (MULTIBOOT_NCHILD)
+gMain = 0x38                  # struct Main (main.h), up to repeatTimer at +0x34
+gCamera = 0x24                # struct Camera (variables.h), up to boundBottom at +0x22
+gGameState = 0x40             # struct GameState (variables.h), up to unk3C at +0x3C (Game_Boot copies 0x40 bytes)
+gHelirins = 0x330             # struct Helirin[4], 0xCC bytes each (variables.h)

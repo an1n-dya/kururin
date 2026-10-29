@@ -1,0 +1,94 @@
+# all_unlocked.sav, file 1 (ALL): Practice (mode 5, sub_08018D34; needs Training 5's mark):
+# its level map (opens at World 10 level 3), the area choice, play, the pause menu's See Demo
+# (the level's recorded keys, sub_0801482C replaying them), the demo's own menu at its end
+# (sub_0800A008: See Map, Make Up, Quit Demo), Play Again, and Quit; then a second level of
+# another world and area.
+save tests/gameplay/saves/all_unlocked.sav
+- 400
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 30
+tap A 200             # file 1
+expect gMain.state == 3
+- 100
+tap Left 30           # mode menu: Practice
+tap A 200
+expect gGameState.mode == 5
+expect gMain.unkB == 11
+expect gGameState.world == 10
+expect gGameState.level == 2
+tap A 60              # World 10 level 3: Area 1 / 2 / 3
+tap A 200             # Area 1
+expect gMain.unkB == 12
+- 150
+Right 40
+- 10
+tap Start 40          # pause: See Demo / See Map / Play Again / Make Up / Quit
+tap A 300             # See Demo
+expect gGameState.flags == 136    # 0x80 playing, 0x08 the demo
+- 1700                # the demo of the area, then its menu: Next / See Again / See Map / Make Up / Quit Demo
+tap Down 30
+tap Down 30
+tap A 90              # See Map
+- 60
+Up 60
+tap B 60              # back to the demo menu
+tap Down 30
+tap A 60              # Make Up (sub_0800A88C): change the Helirin in place
+tap Right 20
+tap Down 20
+tap Right 20
+tap Up 20
+tap Left 20
+tap Down 20
+tap B 60              # back to the demo menu
+tap Down 30
+tap A 200             # Quit Demo: back to play
+
+- 60
+Down+A 60
+tap Start 40
+tap Down 20
+tap Down 20
+tap A 200             # Play Again
+- 100
+tap Start 40
+tap Up 20
+tap A 300             # Quit (the cursor wraps)
+expect gMain.unkB == 11
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 6
+expect gGameState.level == 1
+tap A 60              # World 6 level 2
+tap Down 20
+tap Down 20
+tap A 200             # Area 3
+expect gMain.unkB == 12
+- 100
+Right 60
+Up 90
+A+Right 60
+Down 90
+B+Left 60
+- 120
+tap Start 40
+tap Up 20
+tap A 300             # Quit
+expect gMain.unkB == 11
+tap B 200             # practice map -> mode menu
+expect gMain.unkB == 1

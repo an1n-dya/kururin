@@ -1,0 +1,17 @@
+# corrupt.sav: both banks' checksums are wrong. sub_08005178 reads bank 0, then bank 1, shows
+# its error message until A, then formats the save (the five files and the records reset, the
+# signature, bank 0, two saves); the file menu then lists empty files.
+save tests/gameplay/saves/corrupt.sav
+- 30
+expect file1.name == 76          # 'L': the bad bank's data was read
+expect gMain.state == 0
+- 150
+tap A 100             # the error message
+- 300
+expect file1.name == 0
+expect gMain.state == 1
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 60

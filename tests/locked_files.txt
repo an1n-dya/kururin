@@ -1,0 +1,21 @@
+# The files `make test` and `make shift-test` refuse to run with if they changed: the gameplay
+# harness, its input recordings, the descriptions of the save images inputs boot with
+# (tests/gameplay/saves/*.toml) and tools/make_save.py, which builds the images from them and
+# baserom.gba whenever run.py converts an input (the .sav images hold ROM data and are not
+# committed), the comparison (watch) list, the ROM address map the comparison
+# goes through, the Makefile that runs them, the verification rule /batch commits by
+# (scripts/verify.py), the lock checker and this list itself.
+# tests/check_lock.py expands the globs and compares every file's SHA-256 with
+# tests/lock.sha256; a file added to or removed from a glob fails too. Only the repository owner
+# re-locks (python3 tests/check_lock.py --update).
+tests/locked_files.txt
+tests/check_lock.py
+tests/gameplay/kurutest.c
+tests/gameplay/run.py
+tests/gameplay/watch.txt
+tests/gameplay/inputs/*
+tests/gameplay/saves/*.toml
+tools/make_save.py
+scripts/rom_map.py
+scripts/verify.py
+Makefile

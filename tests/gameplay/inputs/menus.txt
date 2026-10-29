@@ -1,0 +1,55 @@
+# Menus: title, file select, name entry (type, delete, move around the grid), then the mode
+# select: rotate the cursor over the modes, open Adventure's Normal/Easy choice, and back out
+# with B to the file select and the title screen.
+- 400
+tap Start 60
+tap A 60
+tap Start 60
+expect gMain.state == 2
+tap A 60              # empty slot -> name entry
+tap Right 10
+tap Right 10
+tap Down 10
+tap A 20              # a letter
+tap Down 10
+tap Down 10
+tap Right 10
+tap A 20              # another
+tap Up 10
+tap Up 10
+tap Up 10
+tap Up 10             # wraps?
+tap A 20
+tap B 20              # delete
+tap R 20
+tap L 20
+tap Left 10
+tap Left 10
+tap Left 10
+tap Start 20          # cursor to End
+tap A 60
+expect gMain.state == 3
+- 60                  # Select a Mode (cursor on Adventure)
+Right 8               # rotate to Challenge
+- 60
+Right 8               # Make Up
+- 60
+Left 8
+- 60
+Left 8                # back to Adventure
+- 60
+Left 8                # Practice (locked)
+- 60
+Right 8               # Adventure
+- 60
+tap A 90              # Adventure: Normal / Easy
+Right 8               # Easy
+- 40
+Left 8                # Normal
+- 40
+tap B 90              # back to the mode select
+tap B 120             # back to the file select
+expect gMain.state == 2
+tap B 120             # and the title
+expect gMain.state == 1
+- 100

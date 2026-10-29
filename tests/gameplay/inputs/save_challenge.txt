@@ -1,0 +1,167 @@
+# all_unlocked.sav, file 1 (ALL): Challenge (sub_0800FAAC, 11 rows: flag bit 2). Courses 1-5
+# as TASVideos #6116 clears them without a bump (its frames 44420-46620, spliced in at the
+# menu's first A): each result goes into the file and the course's records (sub_0800B604,
+# sub_0800AA0C). Then down to row 11 (the menu scrolls), course 55, pause, Quit, and B back to
+# the mode menu.
+save tests/gameplay/saves/all_unlocked.sav
+- 400
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 30
+tap A 200             # file 1
+expect gMain.state == 3
+- 60
+tap Right 30          # mode menu: Challenge
+A 1
+- 44
+expect gMain.unkB == 5
+# TASVideos #6116 frames 44420-46620: courses 1-5
+A 1
+- 31
+Down+B+A 4
+Down+Right+B+A 17
+Up+Right+B+A 1
+Down+B+A 59
+Down+Right+B+A 43
+Right+B+A 12
+- 193
+A 1
+- 39
+Right 1
+A 1
+- 33
+Up+Right+B+A 17
+Right+B+A 11
+Up+Right+B+A 12
+Right+B+A 103
+Down+Right+B+A 14
+- 193
+A 1
+- 39
+Right 1
+A 1
+- 31
+Down+Right+B+A 3
+Down+B+A 4
+Up+Right+B+A 9
+Up+B+A 3
+Up+Right+B+A 7
+Up+B+A 2
+Down+Right+B+A 8
+Right+B+A 38
+Down+Right+B+A 1
+Right+B+A 2
+Down+Right+B+A 19
+Down+B+A 51
+Down+Left+B+A 21
+Left+B+A 20
+- 193
+A 1
+- 39
+Right 1
+A 1
+- 31
+Down+B+A 6
+Right+B+A 1
+Down+Right+B+A 6
+Down+B+A 1
+Down+Right+B+A 7
+Right+B+A 1
+Down+Right+B+A 6
+Down+B+A 3
+Down+A 1
+Down+Left 1
+Down+Left+B+A 1
+Left+B+A 1
+Down+Right+B+A 7
+Right+B+A 1
+Down+Right+B+A 3
+Down+Right+A 3
+Down+Right+B+A 3
+Right+B+A 16
+Up+Right+B+A 15
+Up+Right+A 2
+Up+A 2
+Up+Right+A 1
+Up+A 3
+Up+B+A 1
+Up+Right+B+A 1
+Up+B+A 65
+Up+Left+B+A 12
+Up+B+A 7
+- 193
+A 1
+- 39
+Right 1
+A 1
+- 33
+Up+Right+B+A 1
+Up+B+A 5
+Up+Right+B+A 1
+Up+B+A 2
+Up+Right+B+A 3
+Up+B+A 1
+Up+Right+B+A 1
+Up+B+A 1
+Up+Right+B+A 5
+Up+B+A 2
+Up+Right+B+A 2
+Up+B+A 6
+Up+Right+B+A 4
+Up+B+A 4
+Up+Left+B+A 1
+Down+Right+B+A 4
+Right+B+A 40
+Up+Right+B+A 5
+Right+B+A 1
+Up+Right+B+A 2
+Right+B+A 5
+Up+Right+B+A 23
+Right+B+A 1
+Down+Right+B+A 7
+Down+Right+A+L 1
+Down+Right+A 1
+Down+Right 5
+Down 12
+Down+Right 6
+Right 3
+Right+A 2
+Right+B+A 5
+Down+Right+B+A 2
+Right+B+A 1
+Down+Right+B+A 4
+Right+B+A 1
+Down+Right+B+A 2
+Right+B+A 45
+- 193
+A 1
+- 31
+expect gMain.unkB == 5
+expect gGameState.level == 4
+expect helirin0.bumpCount == 0
+- 30
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+tap Down 15
+- 60
+tap A 200             # course 55 (row 11, the column kept from course 5)
+expect gMain.unkB == 6
+expect gGameState.level == 54
+- 100
+Right 40
+- 20
+tap Start 40          # pause
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 5
+tap B 150             # -> mode menu
+expect gMain.unkB == 1

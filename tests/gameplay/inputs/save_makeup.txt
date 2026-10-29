@@ -1,0 +1,103 @@
+# all_unlocked.sav, file 1 (ALL): Make Up (sub_080133E4, sub_080135E8): every Helirin type of
+# the three rows, every colour, all ten items toggled on (sub_080187EC tasks), End (Start, A:
+# saves); then Adventure, The Last Land 3 with the items worn, crash until the three lives are
+# gone, back on the map, B to the mode menu and B to the file menu.
+save tests/gameplay/saves/all_unlocked.sav
+- 400
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 30
+tap A 200             # file 1
+expect gMain.state == 3
+- 150
+tap Right 30          # mode menu: Adventure -> Challenge -> VS -> Make Up
+tap Right 30
+tap Right 30
+tap A 200
+expect gGameState.mode == 7
+# rows 1-3: the 15 Helirin types (columns wrap around)
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Down 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Down 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Down 12
+# row 4: the 7 colours (column 7 is End)
+tap A 20
+tap Right 12
+tap Right 12
+tap Right 12
+tap Right 12
+tap Right 12
+tap Right 12
+tap Right 12
+tap Down 12
+# row 5: the 10 items, each toggled on
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+tap Right 12
+tap A 20
+expect file1.flags == 0x2F
+- 60
+tap Start 30          # cursor to End
+tap A 200             # leave (saves)
+tap A 200             # Adventure: the map at The Last Land 3
+expect gGameState.mode == 1
+expect gGameState.world == 11
+expect gGameState.level == 2
+tap A 200
+expect gMain.unkB == 3
+- 150
+Right 60
+Up+Right 60
+A 120
+Down 80
+Left+B 60
+- 200
+expect gMain.unkB == 3
+- 150
+expect gMain.unkB == 2
+tap B 150             # map -> mode menu
+tap B 150             # mode menu -> file menu
+expect gMain.state == 2

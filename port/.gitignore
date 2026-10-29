@@ -1,0 +1,9 @@
+build/
+kururin_pc
+test/build/
+kururin.sav
+kururin.sav.tmp
+kururin_pc.exe
+SDL2.dll
+kururin.ini
+kururin.log

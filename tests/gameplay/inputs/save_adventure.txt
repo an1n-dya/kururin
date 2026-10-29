@@ -1,0 +1,194 @@
+# all_unlocked.sav, file 1 (ALL): the Adventure map opens at The Last Land 3 (flag bit 1: the
+# last world). Level 3 of each world from The Last Land down to World 2 (Ocean): enter it,
+# move a little, pause, Quit; the map then moves three levels left. (World 1 and Training are
+# in the TASVideos movies.)
+save tests/gameplay/saves/all_unlocked.sav
+- 400
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 30
+tap A 200             # file 1
+expect gMain.state == 3
+- 60
+tap A 200             # Adventure
+expect gMain.unkB == 2
+expect gGameState.world == 11
+expect gGameState.level == 2
+tap A 200             # world 11 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 10
+expect gGameState.level == 2
+tap A 200             # world 10 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 9
+expect gGameState.level == 2
+tap A 200             # world 9 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 8
+expect gGameState.level == 2
+tap A 200             # world 8 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 7
+expect gGameState.level == 2
+tap A 200             # world 7 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 6
+expect gGameState.level == 2
+tap A 200             # world 6 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 5
+expect gGameState.level == 2
+tap A 200             # world 5 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 4
+expect gGameState.level == 2
+tap A 200             # world 4 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 3
+expect gGameState.level == 2
+tap A 200             # world 3 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 2
+expect gGameState.level == 2
+tap A 200             # world 2 level 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up 30
+Left 30
+Down 30
+- 20
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap B 150             # map -> mode menu
+expect gMain.unkB == 1

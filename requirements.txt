@@ -1,0 +1,16 @@
+# Python tools for this project (installed into .venv by setup.sh). Exact pins.
+# Luvdis 0.9.0 imports pkg_resources, which setuptools 81 removed.
+setuptools==80.10.2
+Luvdis==0.9.0
+click==7.1.2
+click-default-group==1.2.4
+tqdm==4.70.1
+# ARM instruction comments in the generated crt0/m4a ARM blocks
+capstone==5.0.9
+# decomp-permuter
+toml==0.10.2
+Levenshtein==0.27.5
+RapidFuzz==3.14.6
+# m2c (installed from tools/m2c with --no-build-isolation, so its build backend is pinned here)
+graphviz==0.20.3
+poetry-core==2.5.0

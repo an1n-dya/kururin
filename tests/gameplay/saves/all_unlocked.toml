@@ -1,0 +1,25 @@
+# Everything unlocked (tools/make_save.py): file 1 has every Adventure level and Challenge
+# course cleared without a bump, under the Master times (rank 3), all 30 bonuses (every item,
+# colour and Helirin), the last world and the 11th Challenge row, and the ending seen;
+# file 2 is the same in Easy mode. Files 3 and 4 are empty; GUEST is as reset.
+
+[[file]]
+slot = 1
+name = "ALL"
+adventure = 38
+challenge = 55
+mark = 4
+bonuses = 30
+times = 3
+ending = true
+
+[[file]]
+slot = 2
+name = "EASYALL"
+easy = true
+adventure = 38
+challenge = 55
+mark = 4
+bonuses = 30
+times = 3
+ending = true

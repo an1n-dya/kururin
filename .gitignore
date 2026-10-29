@@ -1,0 +1,42 @@
+# baserom.gba is your own dump of the game and is not tracked (*.gba below). Nothing derived
+# from it -- assembly, data, graphics, the test save images -- may be committed.
+
+# Build outputs
+build/
+/dist/
+expected/
+*.gba
+*.elf
+*.map
+*.o
+*.i
+
+# Generated from baserom.gba by scripts/generate_asm.py (the script is the source of truth)
+asm/*.s
+asm/nonmatchings/
+data/
+ldscript.txt
+modules.mk
+# The test save images: built from tests/gameplay/saves/*.toml and baserom.gba by
+# tools/make_save.py at test time (they hold ROM tables)
+tests/gameplay/saves/*.sav
+tests/gameplay/saves/.*.tmp
+
+# Analysis outputs (Ghidra project/export, m2c/permuter/asmlift scratch)
+ghidra_out/
+nonmatchings/
+ctx.c
+*.m2c.c
+debug_source.c
+debug_compiled_object.o
+
+# Tools installed by setup.sh, except the committed tools/next.py and tools/make_save.py (a scratch copy symlinks
+# each tools/* entry, not tools itself: see CLAUDE.md)
+/tools/*
+!/tools/next.py
+!/tools/make_save.py
+/.venv
+__pycache__/
+*.pyc
+node_modules/
+objdiff.json

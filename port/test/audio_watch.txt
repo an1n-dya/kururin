@@ -1,0 +1,59 @@
+# Watch list of the audio test (make -C port test-audio, docs/port.md "The audio test"): m4a's
+# RAM, compared between the port and the original after every frame, after the entries of
+# tests/gameplay/watch.txt (port/test/port_test.py --extra-watch). <hex address> <size> <name>
+# [raw]; "raw" entries are bytes only (the PCM buffer: never read as a function pointer).
+# Addresses: kururin.toml [symbols] (gSoundInfo, gMPlayJumpTable, gCgbChans, gMPlayMemAccArea,
+# gMPlayInfo_BGM, gMPlayInfo_SE2) and the ROM's gMPlayTable (the players' tracks).
+
+# gSoundInfo (0x03004880): the lock, the counters and settings, the function pointers
+03004880 4 gSoundInfo.ident
+03004884 1 gSoundInfo.pcmDmaCounter
+03004885 11 gSoundInfo.settings
+03004890 12 gSoundInfo.rates
+0300489C 52 gSoundInfo.pointers
+030048D0 64 gSoundInfo.chans0
+03004910 64 gSoundInfo.chans1
+03004950 64 gSoundInfo.chans2
+03004990 64 gSoundInfo.chans3
+030049D0 64 gSoundInfo.chans4
+03004A10 64 gSoundInfo.chans5
+03004A50 64 gSoundInfo.chans6
+03004A90 64 gSoundInfo.chans7
+03004AD0 64 gSoundInfo.chans8
+03004B10 64 gSoundInfo.chans9
+03004B50 64 gSoundInfo.chans10
+03004B90 64 gSoundInfo.chans11
+
+# gSoundInfo.pcmBuffer: the mixer's output, right (DirectSound A) then left (B) half
+03004BD0 792 pcmBuffer.right0 raw
+03004EE8 792 pcmBuffer.right1 raw
+03005200 792 pcmBuffer.left0 raw
+03005518 792 pcmBuffer.left1 raw
+
+# gMPlayJumpTable, gCgbChans
+03005830 144 gMPlayJumpTable
+030058C0 64 gCgbChans0
+03005900 64 gCgbChans1
+03005940 64 gCgbChans2
+03005980 64 gCgbChans3
+
+# the four music players (struct MusicPlayerInfo) and their tracks (struct MusicPlayerTrack)
+030059C0 64 bgm
+03000030 80 bgm.track0
+03000080 80 bgm.track1
+030000D0 80 bgm.track2
+03000120 80 bgm.track3
+03000170 80 bgm.track4
+030001C0 80 bgm.track5
+03000210 80 bgm.track6
+03000260 80 bgm.track7
+030002B0 80 bgm.track8
+03005A00 64 player1
+03000300 80 player1.track0
+03000350 80 player1.track1
+03005A40 64 se2
+030003A0 80 se2.track0
+030003F0 80 se2.track1
+03005A90 64 player3
+03000440 80 player3.track0
+03005A80 16 gMPlayMemAccArea

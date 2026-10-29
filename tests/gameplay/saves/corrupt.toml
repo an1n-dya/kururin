@@ -1,0 +1,12 @@
+# A save the loader rejects (tools/make_save.py): a file with some progress, but both banks'
+# checksums wrong, so sub_08005178 reads bank 0, then bank 1, shows its error until A and
+# formats the save (sub_0800562C, sub_08005644).
+
+[sram]
+bad_checksum = [0, 1]
+
+[[file]]
+slot = 1
+name = "LOST"
+adventure = 8
+mark = 3

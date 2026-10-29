@@ -1,0 +1,20 @@
+# Skipped functions
+
+Functions `/batch` tried and gave up on (`.claude/commands/batch.md`, step 5). `tools/next.py`
+leaves every function in the first column out. Remove a row to make the function a target
+again (e.g. once data splitting lets a function with its own `.rodata` be decompiled).
+
+Since the final C pass (2026-10-21) every function below is C (`docs/remaining.md`,
+`docs/audit.md`); the rows stay as the record of what was tried.
+
+| Function | Date | Rule | Reason |
+| --- | --- | --- | --- |
+| `Hud_DrawLinkProgress` | 2026-10-19 | match | 90.7% after 3 attempts: agbcc hoists the zero of the `unk4 = 0x349C` store expansion out of the Helirin loop into r8 (an extra callee-saved register), so every sprite pointer lands in r3 instead of r1/r2 and the constant stores lose their register copies |
+| `Effect_UpdateLinkResultBanner` | 2026-10-19 | match | 98.2% after 3 attempts (a switch with `goto next`/`goto draw` into case 1, gGameState+0x3C as a u8[4]): register swaps remain (sprite pointer r2 vs r1, palette 0x5000 built in r0 vs r2). Struct stores `spr->unk4 = K` expand to `(unk4 & 0) \| K` and the zero is hoisted out of the icon loop onto the stack; `((u16 *)spr)[2] = K` avoids that |
+| `Vs_ResultsMenuItem` | 2026-10-19 | match | 97.5% after 3 attempts (Vs_RunResults's results menu function: a struct with rank/time/value pointers at +0x1C..+0x24, gUnk_080C4860/68 tile tables; the tile and the palette share one variable, which keeps the u8 narrowing of the palette): `p` and `&gTextCursor` swap r4/r5, the two `0xB000` ORs are CSE'd into one constant, sprite pointers r1/r2 swapped |
+| `Vs_ResultsMenuItem2` | 2026-10-19 | match | 98.6% (the twin of `Vs_ResultsMenuItem`, with items 0x101/0x102 and Vs_DrawNumberRight): the only structural difference left is `spr->unk4 = 0xB000 \| gUnk_080C4868[rank]`, which agbcc does in HImode (0xB000 built in a register and copied) where the original ORs in SImode; every cast and operand order tried gives the copy |
+| `Vs_PlayerSettingsItem` | 2026-10-19 | match | 95.8% after 3 attempts (a settings menu function: a u16 per Helirin at p->unkC..unk12, bits 0-3 its unk5, 4-6 a count, 7 a flag; item 0x1FF draws a row per Helirin, gGameState+0x34 a u16[4]): stack slots and the registers of the row loop (Helirin pointer, loop index) still differ |
+| `Vs_RunResults` | 2026-10-19 | match | not attempted: 2004 bytes, never executed, so it must byte-match; in this batch its 300-900-byte sprite-drawing siblings (`Vs_ResultsMenuItem`, `Vs_ResultsMenuItem2`, `Vs_PlayerSettingsItem`) stopped at 95-98.6% after 3 attempts on agbcc register/constant choices, so a 2 KB match is out of reach of the attempt budget |
+| `Vs_RunMenus` | 2026-10-19 | match | not attempted: 4038 bytes, never executed (must byte-match); same reason as `Vs_RunResults` |
+| `Text_DrawSmallNumber3` | 2026-10-19 | match | one instruction off in scratch (a byte as three right-aligned decimal digits with Text_DrawSmall, space-padded): with `*p++ = c` in each branch of the hundreds digit (as the original has it), gcse hoists the tens digit's `p++` above its loop; with one `p++` after the hundreds `if` everything else matches but that branch loses its own `adds r1, #1` |
+| `Text_DrawSmallNumberAligned` | 2026-10-20 | match | 79.9% after 5 attempts (`Text_DrawNumberAligned`'s C, a number right-aligned in *digits* characters, drawn with Text_DrawSmall; `Text_DrawNumberAligned` itself is at the same 79.9%): agbcc strength-reduces the `gPowersOf10[digits]` load into a pointer stepping by -4 (-dL: "giv at 47 reduced", benefit 4) and gcse hoists `p + 1` out of both branches, where the original indexes with `digits << 2` each time and increments `p` in each branch. u8 characters, `digits--` in the index, do-while, `for (;;)`, a base pointer, one `p++` after the `if` and the permuter (5 min) do not change it; a `goto` loop stops the reduction but loses the hoisted table address. At -O the plain C is one instruction off, but `Text_DrawSmallNumber` and `Text_DrawNumber` in the same region match only at -O2 |

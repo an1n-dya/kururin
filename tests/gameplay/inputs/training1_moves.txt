@@ -1,0 +1,24 @@
+# Start Training 1 and move around the starting area in every direction at every speed
+# (A and B change the speed), bumping walls on the way and losing all hearts once.
+include _boot_to_training1.txt
+Right 20
+Right+A 20
+Down 15
+Down+B 15
+Left+A 25
+Up+B 30
+Up+Right 20
+Down+Left 20
+Up+Left+A 15
+Down+Right+B 15
+A 30
+B 30
+expect helirin0.bumpCount >= 2
+Right+A+B 60
+- 60
+Start 1               # pause
+- 60
+tap Start 60          # unpause
+Left 60
+Right+A 120
+expect gMain.state == 3

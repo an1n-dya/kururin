@@ -1,0 +1,146 @@
+# three_files.sav (all five slots in use). At power-on A+B+Select+Start: the "delete all the
+# saved data?" prompt of sub_08005178, answered No. Each file in turn: its mode menu, back.
+# File 2 (EASY): Adventure in Easy mode (asked already: flag bit 3), its map with the Easy
+# records (gUnk_030043A0 + 0x1B34), a level, Quit. Delete saved data (sub_0800C2F8): cancel
+# once, then delete file 3; on the emptied slot the name entry (sub_0800BC70) through its three
+# character pages, delete with B, End; the new file's Adventure: Normal, and the story's
+# second choice (skip the training: marks 0-4 set to 1, sub_0800E664).
+save tests/gameplay/saves/three_files.sav
+A+B+Select+Start 20
+- 60
+tap Up 30             # Yes
+tap Down 30           # No
+tap A 100
+expect gMain.state == 1
+expect file3.name != 0
+- 200
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 30
+tap A 200             # file 1 (KURU)
+expect gGameState.file == 1
+tap B 100             # back to the file menu
+tap Down 30
+tap A 200             # file 2 (EASY)
+expect gGameState.file == 2
+- 100
+tap A 200             # Adventure: Easy (flag bits 3 and 4)
+expect gGameState.mode == 2
+expect gMain.unkB == 2
+tap Left 30
+tap Left 30
+tap A 200             # World 5 level 2
+expect gMain.unkB == 3
+- 200
+Right 30
+- 30
+A 60
+tap Start 40          # pause: See Map / Play Again / Make Up / Quit
+tap Up 20
+tap A 300             # Quit
+expect gMain.unkB == 2
+tap B 150             # map -> mode menu
+tap B 150             # -> file menu
+expect gMain.state == 2
+- 30
+tap Down 30
+tap Down 30
+tap A 200             # file 3 (CHAL)
+expect gGameState.file == 3
+tap B 100
+tap Down 30
+tap Down 30
+tap Down 30
+tap A 200             # file 4 (PRO)
+expect gGameState.file == 4
+tap B 100
+tap Up 30
+tap Up 30             # GUEST (the fifth item)
+tap A 200
+expect gGameState.file == 0
+tap B 100
+tap Up 30             # Delete saved data
+tap A 60              # "Which data do you want to delete?"
+tap Down 30
+tap Down 30           # file 3
+tap A 60              # "Do you really want to delete this data?" Yes / No (on No)
+tap A 60              # No: back to the file menu, still on Delete saved data
+expect file3.name != 0
+tap A 60
+tap Down 30
+tap Down 30           # file 3
+tap A 60
+tap Up 30             # Yes
+tap A 60
+expect file3.name == 0
+- 60
+tap Down 30
+tap Down 30
+tap Down 30
+tap A 120             # file 3, now empty: the name entry
+expect gMain.unkB == 2
+tap Start 30          # an empty name: Start fills in "Kururin", the cursor on End
+tap B 12
+tap B 12
+tap B 12
+tap B 12
+tap B 12
+tap B 12
+tap B 12
+tap B 12
+- 60                  # (B on the empty name leaves the name entry: back to the file menu)
+expect gMain.unkB == 1
+tap A 120             # file 3 again
+expect gMain.unkB == 2
+tap A 15              # a character of each row of the Capital page
+tap Right 15
+tap A 15
+tap Down 15
+tap A 15
+tap Down 15
+tap A 15
+tap Down 15
+tap A 15
+tap Down 15
+tap Right 15
+tap A 15
+tap Down 15
+tap A 15
+tap R 30              # the Small page
+tap A 15
+tap Up 15
+tap Up 15
+tap Up 15
+tap Up 15
+tap Up 15
+tap Up 15             # the row of the pages: Capital / Small
+tap Left 15
+tap A 15
+tap Down 15
+tap L 30
+tap A 15              # a ninth character: ignored
+tap Start 30          # cursor to End
+tap Down 15           # Delete
+tap A 15
+tap Up 15             # End
+tap A 120
+expect gMain.state == 3
+expect file3.name != 0
+- 100
+tap A 120             # Adventure: Normal or Easy?
+tap A 120             # Normal: the story (sub_0800E664(2))
+tap A 40
+tap A 40
+tap A 40
+tap A 40              # "Do you want to train?" Yes / No
+tap Down 20
+tap A 40              # No: Training 1-5 get mark 1, the map opens at World 1
+- 200
+expect gMain.unkB == 2
+expect gGameState.world == 1
+expect gGameState.level == 0
+tap B 150             # map -> mode menu
+tap B 150             # -> file menu
+expect gMain.state == 2

@@ -1,0 +1,67 @@
+# PROPOSED, not locked: for the maintainers to review, move to tests/gameplay/inputs/ and lock.
+#
+# all_unlocked.sav, file 1 (ALL): Adventure, The Last Land 3, 2 and 1 in a row, each entered
+# from the map, moved in (with the spin buttons), paused and quit. Entering The Last Land 1
+# after The Last Land 2 (frame ~2 713) ends its frame within a few cycles of VBlank: with the
+# 90% LevelMap_Read the rebuilt ROM started that level a frame late and stayed one behind
+# (docs/audit.md, Timing). Passes with the cycle-identical LevelMap_Read.
+save tests/gameplay/saves/all_unlocked.sav
+- 400
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+- 30
+tap A 200             # file 1
+expect gMain.state == 3
+- 60
+tap A 200             # Adventure: the map opens at The Last Land 3
+expect gMain.unkB == 2
+expect gGameState.world == 11
+expect gGameState.level == 2
+tap A 200             # The Last Land 3
+expect gMain.unkB == 3
+- 150
+Right 30
+Up+A 30
+Left+B 30
+Down 30
+- 20
+tap Start 40          # pause
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22           # one level left on the map
+- 30
+expect gGameState.world == 11
+expect gGameState.level == 1
+tap A 200             # The Last Land 2
+expect gMain.unkB == 3
+- 150
+Right 30
+Up+A 30
+Left+B 30
+Down 30
+- 20
+tap Start 40
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+- 30
+expect gGameState.world == 11
+expect gGameState.level == 0
+tap A 200             # The Last Land 1: the level start at the frame's edge
+expect gMain.unkB == 3
+- 150
+Right 30
+Up+A 30
+Left+B 30
+Down 30
+- 20
+tap Start 40
+tap Up 20
+tap A 200             # Quit
+expect gMain.unkB == 2
+tap Left 22
+- 330

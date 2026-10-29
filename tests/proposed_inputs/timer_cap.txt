@@ -1,0 +1,17 @@
+# PROPOSED, not locked: for the maintainers to review, move to tests/gameplay/inputs/ (then the
+# include below becomes "include _boot_to_training1.txt") and lock.
+#
+# Start the clock in Training 1 (fly right out of the start circle), then leave the game alone
+# for more than an hour: the level timer (helirin0.timer, 0x030045E8) stops at 0x34BBF frames
+# (59'59"59), the clamp in Play_CheckLevelEnd (docs/audit.md) that no recorded input reaches.
+# About 217 000 frames (kurutest needs ~5 minutes for it).
+include ../gameplay/inputs/_boot_to_training1.txt
+Right 40
+- 600
+expect helirin0.timer > 500       # the clock runs
+expect helirin0.lives == 3        # and nothing hits the Helirin while it waits
+- 216000
+expect helirin0.timer == 19391    # stopped: the watch holds the low halfword, 0x34BBF & 0xFFFF
+- 120
+expect helirin0.timer == 19391
+expect helirin0.lives == 3

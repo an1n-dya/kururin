@@ -1,0 +1,18 @@
+# Everything except the final world (tools/make_save.py): file 1 has Training and worlds 1-10
+# cleared, but World 10 level 3 (level 34) with a bump (mark 3), so the last world is still
+# locked (it opens once levels 5-34 all have mark 4: sub_0800B604); every Challenge course
+# cleared, all 30 bonuses taken, the ending not yet seen (the next level 3 of worlds 1-10
+# cleared starts it: sub_08008200). Best times just under the Professor times, but World 1
+# level 3 (level 7) only under the Trainee time: rank 1, and beating Professor there makes it 2.
+
+[[file]]
+slot = 1
+name = "NEAR"
+adventure = 35
+challenge = 55
+mark = 4
+marks = { 34 = 3 }
+bonuses = 30
+times = 1
+level_times = { 7 = 0 }
+

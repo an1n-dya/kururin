@@ -1,0 +1,3 @@
+# Power on and leave the game alone: intro, title screen, attract-mode gameplay demo.
+- 6000
+expect gMain.state == 1

@@ -1,0 +1,24 @@
+# Start Training 1 and fly straight right into the wall until all three hearts are gone; the
+# game goes back to the Training map, and entering Training 1 again plays the tutorial
+# ("Watch the demo to learn the correct timing") before the level.
+include _boot_to_training1.txt
+Right 300
+expect helirin0.bumpCount == 3
+expect helirin0.lives == 0
+- 300                 # failure, back to the Training map
+tap A 60              # enter Training 1 again
+tap A 60
+- 300
+tap A 60              # tutorial text...
+tap A 60
+tap A 60
+tap A 60
+tap A 60
+tap A 60
+tap A 60
+tap A 60
+- 300                 # back in Training 1 with full hearts
+expect helirin0.lives == 3
+expect helirin0.bumpCount == 0
+Right+A 60            # and into the wall again, faster
+expect helirin0.bumpCount >= 1

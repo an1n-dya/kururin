@@ -1,0 +1,49 @@
+# All five file slots in use with different progress (tools/make_save.py):
+#   file 1 KURU   Normal, Training and world 1 cleared (with bumps), 2 bonuses
+#   file 2 EASY   Easy mode, up to world 5 level 3, 9 bonuses, its Easy records
+#   file 3 CHAL   Normal, Training only, 20 Challenge courses without a bump
+#   file 4 PRO    Normal, up to world 9 level 1, 50 Challenge courses, 20 bonuses,
+#                 under the Professor times
+#   GUEST         Training 1-3 cleared
+
+[[file]]
+slot = 1
+name = "KURU"
+adventure = 8
+mark = 3
+bonuses = [0, 1]
+times = 0
+
+[[file]]
+slot = 2
+name = "EASY"
+easy = true
+adventure = 20
+mark = 4
+bonuses = [0, 1, 2, 3, 4, 5, 6, 7, 8]
+times = 1
+
+[[file]]
+slot = 3
+name = "CHAL"
+adventure = 5
+challenge = 20
+mark = 4
+times = 2
+
+[[file]]
+slot = 4
+name = "PRO"
+adventure = 29
+challenge = 50
+mark = 4
+bonuses = 20
+times = 1
+helirin = 3
+colour = 2
+items_worn = 0x005
+
+[[file]]
+slot = 0
+adventure = 3
+mark = 3

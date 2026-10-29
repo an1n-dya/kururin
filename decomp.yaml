@@ -1,0 +1,23 @@
+# decomp_settings (https://github.com/ethteck/decomp_settings) for tools such as asmlift.
+name: Kuru Kuru Kururin
+platform: gba
+versions:
+  - name: eu
+    fullname: Europe
+    sha1: 6025ef597db2684ae064ffe22b4fd1d37941f887
+    paths:
+      target: baserom.gba
+      build_dir: build
+      map: kururin.map
+      compiled_target: kururin.gba
+
+tools:
+  asmlift:
+    target: agbcc
+    elf: kururin.elf
+    # {{cc}} and {{cflags}} come from the function's unit in objdiff.json (generated from
+    # kururin.toml cc/cflags), so m4a and agb_sram candidates compile like the Makefile does.
+    compiler: |
+      arm-none-eabi-cpp -std=gnu17 -nostdinc -I tools/agbcc/include -iquote include {{inputPath}} -o {{outputPath}}.i
+      ./tools/agbcc/bin/{{cc}} {{outputPath}}.i -o {{outputPath}}.s {{cflags}}
+      arm-none-eabi-as -mcpu=arm7tdmi -mthumb-interwork {{outputPath}}.s -o {{outputPath}}

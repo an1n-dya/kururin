@@ -1,0 +1,41 @@
+#
+# Pause menu > "See Map" in Training 1: the free camera of sub_0800B36C (docs/audit.md), which no
+# recorded input uses. Scroll to all four edges of the map (the four bound clamps), at every
+# speed (2, A: 4, B: 4, A+B: 8), press Select once (camera snaps back to the Helirin), leave
+# with B, then pause again and take "Play Again" and finally "Quit" (sub_08008660's handling of
+# sub_08009438 returning 2 and -1).
+include _boot_to_training1.txt
+Right 20
+B 10                  # hold B before pausing: a new B press would leave the map at once
+Start+B 1             # pause
+B 60
+A+B 1                 # See Map, B still held
+Right+A+B 60          # speed 8: B doubles the A speed
+expect gGameState.flags == 129    # bit 0: map view (0x80 is set during play)
+Right+B 60            # speed 4 with B alone
+- 20
+A 1                   # (A held now: B released without a new B press)
+Right+A 120           # to the right bound
+Down 240              # bottom bound
+Left+A 240            # left bound
+Up+A 240              # top bound
+expect gGameState.flags == 129
+tap Select 30         # Select: the camera follows the Helirin again
+Right 60
+- 30
+tap B 60              # leave the map
+- 30
+tap Start 90          # resume
+expect gGameState.flags == 128
+Right 20
+tap Start 60          # pause: See Map / Play Again / Make Up / Quit
+tap Down 60
+tap A 60              # Play Again: the Helirin is back at the start
+- 240
+expect helirin0.x == 5242880
+tap Start 60
+tap Down 30
+tap Down 30
+tap Down 30
+tap A 60              # Quit
+- 300

@@ -1,0 +1,89 @@
+# Watch list for tests/gameplay/kurutest.c: compared between the original and the rebuilt ROM
+# after every frame. <hex address> <size in bytes> <name>; sizes 1/2/4 compare and print as
+# integers, larger sizes compare byte by byte and report the first differing byte.
+# Named fields come first so a mismatch is reported by its most specific name.
+#
+# Names and addresses: KururinTAS's BizHawk memory watch
+# (tools/research/KururinTAS/"Kuru Kuru Kururin (Europe).wch") and include/variables.h.
+# These globals are absolute symbols (kururin.toml [symbols]), so their addresses are the same
+# in both ROMs; a non-matching build must keep them that way.
+
+# gMain (0x03000DC0): +0 global frame counter (.wch); +0xA the main-loop state that AgbMain
+# dispatches on (table 0x080C28B4[state]); +0xB set to 0 next to it by AgbMain.
+03000DC0 4 gMain.frameCounter
+03000DCA 1 gMain.state
+03000DCB 1 gMain.unkB
+
+# gGameState (0x03004420)
+03004420 1 gGameState.world
+03004421 1 gGameState.level
+03004440 4 gGameState.flags
+03004424 1 gGameState.file
+03004436 1 gGameState.mode
+
+# gGameState.unk4 (the save file picked) and unk16 (1 Adventure, 2 Easy, 3 Challenge, 7 Make Up).
+# The save data in RAM (docs/save_format.md: gUnk_0203BDAC, files of 0x1F4 bytes): each file's
+# name (+2: its first character, 0 for an empty file), rank (+0xD), flags (+0x10) and
+# unlocks (+0x14), for expect checks.
+0203BDAE 1 file0.name
+0203BDB9 1 file0.rank
+0203BDBC 4 file0.flags
+0203BDC0 4 file0.unlocks
+0203BFA2 1 file1.name
+0203BFAD 1 file1.rank
+0203BFB0 4 file1.flags
+0203BFB4 4 file1.unlocks
+0203C196 1 file2.name
+0203C1A1 1 file2.rank
+0203C1A4 4 file2.flags
+0203C1A8 4 file2.unlocks
+0203C38A 1 file3.name
+0203C395 1 file3.rank
+0203C398 4 file3.flags
+0203C39C 4 file3.unlocks
+0203C57E 1 file4.name
+0203C589 1 file4.rank
+0203C58C 4 file4.flags
+0203C590 4 file4.unlocks
+
+# gHelirins[0] (0x03004530): the player
+03004544 4 helirin0.x
+03004548 4 helirin0.y
+0300454C 4 helirin0.xb
+03004550 4 helirin0.yb
+03004554 4 helirin0.xs
+03004558 4 helirin0.ys
+03004564 2 helirin0.colorTimer
+03004570 2 helirin0.speedNorm
+03004572 2 helirin0.angle
+03004574 2 helirin0.angleRate
+03004576 2 helirin0.angleDefaultRate
+0300457E 2 helirin0.bumpCount
+03004582 1 helirin0.lives
+03004584 1 helirin0.frame
+03004585 1 helirin0.invulnerability
+030045D4 4 helirin0.collisionMask
+030045E8 2 helirin0.timer
+
+# gCamera bounds (0x030043B0 + 0x1C..0x22)
+030043CC 2 gCamera.boundLeft
+030043CE 2 gCamera.boundRight
+030043D0 2 gCamera.boundTop
+030043D2 2 gCamera.boundBottom
+
+# Watched by the .wch, not yet tied to a struct (include/variables.h)
+0300313C 2 mapWidth
+0300313E 2 mapHeight
+030059CC 4 m4aPlayer.clock
+
+# Whole structs, to catch the fields that have no name yet
+03000DC0 16 gMain
+030043B0 36 gCamera
+03004420 36 gGameState
+03004530 816 gHelirins
+
+# The sound (kurutest.c, "The sound"): m4a's PCM buffer, the mixer's output that the sound DMAs
+# copy to FIFO A (right, 0x03004BD0) and B (left, 0x03005200): gSoundInfo.pcmBuffer
+# (include/m4a.h, PCM_DMA_BUF_SIZE 1584 bytes a side). "finished": compared only for the frames
+# whose work the original finished before the next VBlank (kurutest.c, compareFinished).
+03004BD0 3168 gSoundInfo.pcmBuffer finished

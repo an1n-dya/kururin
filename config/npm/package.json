@@ -1,0 +1,9 @@
+{
+  "name": "kururin-decomp-tools",
+  "private": true,
+  "description": "Node tools for kururin-decomp, installed by setup.sh into tools/npm with npm ci.",
+  "dependencies": {
+    "@asmlift/cli": "0.8.1",
+    "rea-agents": "6.5.0"
+  }
+}

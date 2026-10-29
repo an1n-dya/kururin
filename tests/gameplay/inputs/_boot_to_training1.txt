@@ -1,0 +1,30 @@
+# Shared prefix: power on, skip the intro, title screen, new save file named "A",
+# Adventure > Normal, the story scene, then Training 1 up to the moment the player has control.
+- 400                 # intro
+tap Start 60          # skip the intro
+tap A 60              # (ignored while the title fades in)
+tap Start 60          # title -> file select
+expect gMain.state == 2
+tap A 60              # first slot (empty) -> name entry
+tap A 20              # enter "A"
+tap Left 20           # cursor to "End"
+tap A 60
+expect gMain.state == 3
+tap A 60              # Select a Mode: Adventure
+tap A 60              # Normal propeller length
+tap A 120
+tap A 40              # story text...
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40              # ...Training 1 title card
+- 160
+expect helirin0.lives == 3
+expect helirin0.bumpCount == 0

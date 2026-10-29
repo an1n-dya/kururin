@@ -1,0 +1,9 @@
+# decomp-permuter settings (tools/decomp-permuter). For near-matches only:
+#   scripts/permute_import.sh <module> <fn>     (adds the .globl line import.py needs, and the
+#                                               module's compiler/flags from kururin.toml)
+#   .venv/bin/python3 tools/decomp-permuter/permuter.py nonmatchings/<fn> -j4
+# The permuter's output is a hint; port the idea by hand and confirm with `make compare`.
+compiler_type = "gcc"
+compiler_command = "scripts/agbcc_compile.sh -I include -I tools/agbcc/include"
+assembler_command = "arm-none-eabi-as -mcpu=arm7tdmi -mthumb-interwork"
+asm_prelude_file = "asm/macros.inc"

@@ -1,0 +1,292 @@
+# near_end.sav: file 1 (NEAR, rank 1, all bonuses, ending not seen). Adventure map from
+# Ghost Castle 3 back to World 1 level 3, which TASVideos #6116 clears without a bump
+# (its frames 4818-5830, from the map's A, spliced in); the time beats the Professor time:
+# rank 2 (sub_0800B000: the rank text, the Master records), then all ten items and a level 3
+# start the ending (gMain.state 4, sub_080076FC), which sets flag bit 5, saves and returns to
+# the title screen.
+save tests/gameplay/saves/near_end.sav
+- 400
+tap Start 60          # skip the intro
+tap A 60
+tap Start 60          # title -> file select
+expect gMain.state == 2
+expect file1.rank == 1
+- 30
+tap A 120             # file 1
+expect gMain.state == 3
+tap A 200             # Adventure: the map opens at World 10 level 3
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+tap Left 22
+- 30
+expect gGameState.world == 1
+expect gGameState.level == 2
+# TASVideos #6116 frames 4818-5830 (A on the map, then the level)
+A 1
+- 25
+A 1
+- 20
+Up+B+A 3
+Up+Right+B+A 19
+Right+B+A 1
+Down+Right+B+A 2
+Up+B+A 9
+Up+Right+B+A 34
+Right+B+A 24
+Down+Right+B+A 38
+Right+B+A 19
+Up+Right+B+A 7
+Up+B+A 41
+Up+Left+B+A 10
+Up+B+A 13
+Up+Right+B+A 16
+Right+B+A 8
+Up+Right+B+A 17
+Right+B+A 13
+Up+Right+B+A 9
+Left 4
+Up+B+A 6
+Up+Left+B+A 2
+Up+B+A 10
+Up+Right+B+A 24
+Right+B+A 18
+Down+Right+B+A 4
+Right+B+A 2
+Down+Right+B+A 15
+Down+B+A 29
+Down+Right+B+A 4
+Down+B+A 1
+Down+Right+B+A 8
+Right+B+A 2
+Up+Right+B+A 1
+Down+Right+B+A 1
+Right+B+A 5
+Up+Right+B+A 1
+Right+B+A 1
+Up+B+A 1
+Right+B+A 6
+Down+Right+B+A 19
+Down+B+A 26
+Down+Left+B+A 50
+Left+B+A 35
+Up+Left+B+A 4
+Left+B+A 4
+Down+Left+B+A 10
+Down+B+A 38
+Down+Left+B+A 5
+Down+B+A 1
+Down+Left+B+A 20
+Left+B+A 3
+Down+Left+B+A 7
+Left+B+A 4
+Down+Left+B+A 4
+Left+B+A 47
+Up+Left+B+A 10
+Left+B+A 3
+Up+Left+B+A 28
+Up+B+A 14
+- 193
+A 1
+- 11
+expect helirin0.bumpCount == 0
+expect gMain.state == 3
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+expect gMain.state == 4
+expect file1.rank == 2
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+tap A 40
+- 60
+expect gMain.state == 1
+expect file1.flags == 0x2D
