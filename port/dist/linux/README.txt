@@ -171,11 +171,11 @@ If something goes wrong
 Licences
 --------
 
-kururin_pc is built from the kururin-decomp project's source. It contains GCC's runtime library
-(libgcc), under the GPL with the GCC Runtime Library Exception, and uses the system's glibc
-(LGPL). libSDL2-2.0.so.0 is SDL 2.32.10 (https://www.libsdl.org/), built from its source
-release, under the zlib licence: LICENSE-SDL2.txt and README-SDL.txt. The renderer is derived
-from mGBA (https://mgba.io, Copyright (c) 2013-2015 Jeffrey Pfau) and is under the Mozilla
-Public License 2.0: LICENSE-MPL-2.0.txt; its source is source/video.c. Kuru Kuru Kururin is
-(c) Nintendo / Eighting: the program holds the game's code, decompiled and compiled again, and
-none of the cartridge's data.
+kururin_pc is built from the source of the kururin project (https://github.com/an1n-dya/kururin).
+It contains GCC's runtime library (libgcc), under the GPL with the GCC Runtime Library Exception,
+and uses the system's glibc (LGPL). libSDL2-2.0.so.0 is SDL 2.32.10 (https://www.libsdl.org/),
+built from its source release, under the zlib licence: LICENSE-SDL2.txt and README-SDL.txt.
+The renderer is derived from mGBA (https://mgba.io, Copyright (c) 2013-2015 Jeffrey Pfau) and is
+under the Mozilla Public License 2.0: LICENSE-MPL-2.0.txt; its source is source/video.c.
+Kuru Kuru Kururin is (c) Nintendo / Eighting: the program holds the game's code,
+decompiled and compiled again, and none of the cartridge's data.
