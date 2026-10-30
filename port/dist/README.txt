@@ -1,8 +1,8 @@
 Kuru Kuru Kururin - PC port for Windows
 =======================================
 
-A 32-bit program for 32- and 64-bit Windows (7 or later). Built and tested on Linux, under
-Wine 9.0; not yet run on a real Windows machine.
+A 32-bit program for 32- and 64-bit Windows (7 or later). Tested on Windows and under
+Wine 9.0.
 
 This is the game's own code, decompiled to C and compiled for the PC, with a small layer
 standing in for the Game Boy Advance's hardware. It contains none of the cartridge's data:
@@ -106,8 +106,8 @@ If something goes wrong
 Licences
 --------
 
-kururin_pc.exe is built from the kururin-decomp project's source. SDL2.dll is SDL 2.32.10
-(https://www.libsdl.org/), under the zlib licence: LICENSE-SDL2.txt and README-SDL.txt. The
+kururin_pc.exe is built from the source of the kururin project (https://github.com/an1n-dya/kururin).
+SDL2.dll is SDL 2.32.10 (https://www.libsdl.org/), under the zlib licence: LICENSE-SDL2.txt and README-SDL.txt. The
 program contains the mingw-w64 runtime, under the ZPL 2.1 and the other licences listed in
 LICENSE-mingw-w64.txt, and GCC's runtime library (libgcc), under the GPL with the GCC Runtime
 Library Exception. The renderer is derived from mGBA (https://mgba.io, Copyright (c) 2013-2015
